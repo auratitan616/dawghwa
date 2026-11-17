@@ -16,7 +16,7 @@ import { useUser } from "@/lib/store/user";
 import { useRankContext } from "@/lib/feed/context";
 import { fromResult, titlePath, type Title } from "@/lib/titles";
 
-const EXAMPLES = ["Manhwa with an overpowered MC and revenge", "Completed fantasy manga with romance", "Dark Korean manhwa without a love triangle", "Something similar to Solo Leveling", "Hidden gems with fewer than 100 chapters"];
+const EXAMPLES = ["Manhwa with an overpowered MC and revenge", "Completed fantasy manga with romance", "Dark Korean manhwa without a love triangle", "Something similar to Solo Leveling", "Completed romance with fewer than 100 chapters"];
 
 function useDebounced<T>(v: T, ms: number) {
   const [d, setD] = useState(v);
@@ -261,6 +261,7 @@ export default function Search() {
               {intentQ.data.seedMissing ? `Couldn't find "${intent.similarTo}" in the catalogue, so this uses the other filters only. ` : ""}
               {local.length || intentQ.data.downgraded.length ? `Filtered on this device: ${intentQ.data.removedLocally} of ${intentQ.data.scanned} fetched titles removed.` : ""}
               {intentQ.data.downgraded.length ? ` Not supported by the catalogue, applied locally: ${intentQ.data.downgraded.join(", ")}.` : ""}
+              {intentQ.data.unavailable.length ? ` Not applied, because the catalogue does not provide the data: ${intentQ.data.unavailable.join(", ")}.` : ""}
             </p>
           )}
           {active.isError && !items.length ? (

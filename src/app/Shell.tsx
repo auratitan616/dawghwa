@@ -68,8 +68,8 @@ export function Shell() {
           ))}
         </nav>
         <div className="sidebar-section">Shortcuts</div>
-        <NavLink className="side-link" to="/search?q=hidden%20gems">
-          Hidden gems
+        <NavLink className="side-link" to="/discover?order=rating">
+          Top rated
         </NavLink>
         <NavLink className="side-link" to="/discover?status=completed">
           Completed series

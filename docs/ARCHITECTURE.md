@@ -2,7 +2,7 @@
 
 ```
 dawghwa (this repo)                     dawghwa.api (separate repo)
-React SPA / PWA / Capacitor  ── HTTPS ──>  Next.js API: providers, browse, chapters, pages, health
+React SPA / PWA / Capacitor  ── HTTPS ──>  Next.js API: catalogue, titles, search, chapters, pages, health
 ```
 
 The app never talks to content providers for data. Provider logic, normalisation and rate limiting live only in the API. The app reads capabilities from the API (for example which sources support chapter pages) instead of hardcoding providers. Cover and page images load directly from the URLs the API returns.

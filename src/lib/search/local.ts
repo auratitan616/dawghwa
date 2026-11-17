@@ -78,6 +78,7 @@ export function applyLocal(items: Title[], i: Intent): LocalResult {
     if (i.yearMin && (!m?.year || m.year < i.yearMin)) return false;
     if (i.yearMax && (!m?.year || m.year > i.yearMax)) return false;
     if (i.hiddenGems && !isGem(t)) return false;
+    if (i.demographic.length && !(m?.demographic && (i.demographic as string[]).includes(m.demographic.toLowerCase()))) return false;
     return true;
   });
   return { kept, removed: items.length - kept.length - unknown, unknown };

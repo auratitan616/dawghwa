@@ -6,8 +6,7 @@ import { train } from "../intel/learner";
 describe("home sections", () => {
   it("local theme rows find real matches in real catalogue data", () => {
     const counts = Object.fromEntries(CATALOGUE_SECTIONS.filter((s) => s.filter).map((s) => [s.id, catalog.filter(s.filter!).length]));
-    console.log(counts);
-    for (const id of ["revenge", "regression", "overpowered", "dark-fantasy", "cultivation", "dungeon", "hidden-gems"]) expect(counts[id]).toBeGreaterThanOrEqual(6);
+    for (const id of ["revenge", "regression", "overpowered", "dark-fantasy", "cultivation", "dungeon"]) expect(counts[id]).toBeGreaterThanOrEqual(6);
   });
 
   it("orders rows by onboarding picks, then by learned affinity", () => {

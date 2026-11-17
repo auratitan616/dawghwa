@@ -105,11 +105,17 @@ function CatalogueSection({ def, ctx, claims, order }: { def: SectionDef; ctx: R
 }
 
 function Featured({ ctx }: { ctx: RankContext }) {
-  const q = useBrowse({ order: "popular", limit: 30, createdWithinDays: 1095 });
+  // most-followed series; prefer ones with a synopsis to show
+  const q = useBrowse({ order: "popular", limit: 30 });
   const [i, setI] = useState(0);
   const lib = useUser((s) => s.library);
-  const items = useMemo(() => rerankRow((q.data?.items ?? []).filter((t) => t.meta?.description && t.cover), ctx).slice(0, 5), [q.data, ctx]);
+  const items = useMemo(() => {
+    const withCover = (q.data?.items ?? []).filter((t) => t.cover);
+    const described = withCover.filter((t) => t.meta?.description);
+    return rerankRow(described.length >= 3 ? described : withCover, ctx).slice(0, 5);
+  }, [q.data, ctx]);
   if (q.isError && !q.data) return <ErrorState error={q.error} retry={() => void q.refetch()} />;
+  if (q.data && !items.length) return null;
   if (!items.length)
     return (
       <div className="hero" aria-busy="true">
@@ -137,7 +143,7 @@ function Featured({ ctx }: { ctx: RankContext }) {
           <h2 data-long={t.title.length > 48 ? "" : undefined}>
             <Link to={titlePath(t)}>{t.title}</Link>
           </h2>
-          <p className="hero-desc">{t.meta?.description}</p>
+          {t.meta?.description && <p className="hero-desc">{t.meta.description}</p>}
         </div>
         <div className="hero-actions">
           <Link className="btn btn-primary btn-lg" to={titlePath(t)}>
@@ -355,8 +361,8 @@ export default function Home() {
             </button>
           </div>
           <hr className="divider" style={{ margin: "16px 0" }} />
-          <Link className="side-link" to="/search?q=hidden%20gems%20with%20fewer%20than%20100%20chapters" style={{ display: "flex", gap: 10, alignItems: "center", minHeight: 40 }}>
-            <Sparkles size={16} /> Short hidden gems
+          <Link className="side-link" to="/search?q=completed%20romance%20with%20fewer%20than%20100%20chapters" style={{ display: "flex", gap: 10, alignItems: "center", minHeight: 40 }}>
+            <Sparkles size={16} /> Short completed romance
           </Link>
           <Link className="side-link" to="/search?q=completed%20fantasy%20manhwa" style={{ display: "flex", gap: 10, alignItems: "center", minHeight: 40 }}>
             <Play size={16} /> Completed fantasy manhwa

@@ -6,8 +6,8 @@ test.beforeEach(async ({ context }) => maybeRelay(context));
 test("reader opens a supported chapter without marking it read", async ({ page, request }) => {
   test.skip(!(await apiUp(page)), "API not running");
   // Find a MangaDex title that actually has readable chapters right now.
-  const browse = await request.post("/api/browse", { data: { source: "mangadex", limit: 20, sort: "followers" } });
-  const items = ((await browse.json()) as { items: { id: string; url: string }[] }).items;
+  const browse = await request.get("/api/catalog?provider=mangadex&sort=popularity&limit=20");
+  const items = ((await browse.json()) as { items: { providerId: string; url: string }[] }).items.map((i) => ({ id: i.providerId, url: i.url }));
   let target: { id: string; chapter: string } | undefined;
   for (const it of items) {
     const r = await request.post("/api/chapters", { data: { source: "mangadex", url: it.url } });

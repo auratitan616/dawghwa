@@ -7,7 +7,7 @@ Dawghwa does not host content and contains no scrapers or source adapters. All c
 ## What works
 
 - Home with data-driven sections (catalogue rows, continue reading, personal picks with real explanations, Surprise Me).
-- Discover with filters the API supports (format, status, demographic, include/exclude tags, sort).
+- Discover with filters the API's catalogue supports (one format, one status, release year, include/exclude tags, sort).
 - Search: plain titles, or natural language such as "completed fantasy manhwa, not romance". Filters the API supports run on the server; anything else is applied on the device and labelled "on device".
 - Title pages with chapter lists, read marks, library status, favourites, collections and "More like this".
 - Reader for providers that support chapter pages (currently MangaDex): vertical, single and double page, RTL/LTR, resume, auto-next. A chapter is marked read only when its last page is reached. Other providers open on the provider's site.
@@ -24,7 +24,19 @@ cp .env.example .env.local      # set DAWGHWA_API_DEV if your API is not on :310
 npm run dev
 ```
 
-Run the API alongside (in `dawghwa.api`): `npm run build && npx next start -p 3100`.
+Run the API alongside (in `dawghwa.api`): `npm run build && npx next start -p 3100`, or point the dev/preview proxy at the deployed API: `DAWGHWA_API_DEV=https://dawghwaapi.vercel.app npm run preview`.
+
+### API endpoints used
+
+| Feature | Endpoint |
+| --- | --- |
+| Catalogue rows, Discover, structured search | `GET /api/catalog?provider=mangadex` |
+| Filter vocabulary | `GET /api/catalog/filters?provider=mangadex` |
+| Title details | `GET /api/titles/mangadex:{id}` |
+| Multi-source title search | `POST /api/search` (NDJSON) |
+| Chapters, pages | `POST /api/chapters`, `POST /api/pages` (pages: MangaDex only) |
+
+The catalogue provider is MangaDex, so catalogue ids are the ids the reader uses. `src/lib/api/catalog.ts` translates app queries to catalogue parameters. Several formats or statuses, and demographic, are filtered on the device and labelled so. Filters that need data the catalogue does not return (follower counts for "hidden gems"; tags and synopses for moods and story themes until the API includes them in list items) are skipped and the search says so.
 
 | Command | |
 | --- | --- |
