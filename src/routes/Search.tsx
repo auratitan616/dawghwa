@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { Clock, Globe, Search as SearchIcon, SlidersHorizontal, TrendingUp, X } from "lucide-react";
+import { Clock, Globe, Search as SearchIcon, SlidersHorizontal, X } from "lucide-react";
 import { Sheet } from "@/components/Layer";
-import { Kicker } from "@/components/Editorial";
-import type { BrowseOrder, MangaKind } from "@/lib/api/types";
+import type { BrowseOrder, BrowseQuery, MangaKind } from "@/lib/api/types";
+import { TitleCard } from "@/components/TitleCard";
 import { TitleGrid } from "@/components/Grid";
 import { EmptyState, ErrorState, GridSkeleton } from "@/components/States";
 import { Cover } from "@/components/Cover";
@@ -165,6 +165,33 @@ function AllSources({ q }: { q: string }) {
   );
 }
 
+const CATEGORIES: { label: string; to: string; q: BrowseQuery }[] = [
+  { label: "Top rated", to: "/discover?order=rating", q: { order: "rating" } },
+  { label: "New releases", to: "/discover?order=new", q: { order: "new" } },
+  { label: "Recently updated", to: "/discover?order=latest", q: { order: "latest" } },
+  { label: "Completed", to: "/discover?status=completed", q: { status: ["completed"], order: "popular" } },
+  { label: "Manhwa", to: "/discover?kind=manhwa", q: { kinds: ["manhwa"], order: "popular" } },
+  { label: "Manga", to: "/discover?kind=manga", q: { kinds: ["manga"], order: "popular" } },
+  { label: "Manhua", to: "/discover?kind=manhua", q: { kinds: ["manhua"], order: "popular" } },
+  { label: "Romance", to: "/discover?tag=Romance", q: { includedTags: ["Romance"], order: "popular" } },
+];
+
+/** Category tile: the label plus the cover of that category's current top series (a real browse result). */
+function CategoryTile({ label, to, q }: { label: string; to: string; q: BrowseQuery }) {
+  const r = useBrowse({ ...q, limit: 2 });
+  const t = r.data?.items[0];
+  return (
+    <li>
+      <Link className="cat-tile" to={to}>
+        <span className="cat-tile-label">{label}</span>
+        <span className="cat-tile-art" aria-hidden="true">
+          {t?.cover ? <img src={t.cover} alt="" loading="lazy" decoding="async" referrerPolicy="no-referrer" /> : <span className="skeleton" />}
+        </span>
+      </Link>
+    </li>
+  );
+}
+
 export default function Search() {
   const [params, setParams] = useSearchParams();
   const profileId = useUser((s) => s.profile?.id);
@@ -307,7 +334,7 @@ export default function Search() {
 
   return (
     <div className="page search-page">
-      <h1 className="sr-only">Search</h1>
+      <h1 className="search-title">Search</h1>
       <div className="search-box">
         <form
           className="search-input"
@@ -403,12 +430,41 @@ export default function Search() {
               </ul>
             </section>
           )}
+          {(trending.data?.items.length ?? 0) > 0 && (
+            <section className="section" aria-labelledby="trend-h">
+              <div className="section-head">
+                <div className="section-titles">
+                  <h2 id="trend-h">What everyone's reading</h2>
+                  <p>Most-followed series added in the last 12 months</p>
+                </div>
+                <Link className="see-all" to="/discover?new=1">
+                  See all
+                </Link>
+              </div>
+              <div className="row-track">
+                {trending.data!.items.slice(0, 10).map((t, n) => (
+                  <TitleCard key={t.key} title={t} context="trending" rank={n + 1} />
+                ))}
+              </div>
+            </section>
+          )}
+          <section className="section" aria-labelledby="cat-h">
+            <div className="section-head">
+              <div className="section-titles">
+                <h2 id="cat-h">Browse categories</h2>
+              </div>
+            </div>
+            <ul className="cat-tiles">
+              {CATEGORIES.map((c) => (
+                <CategoryTile key={c.label} {...c} />
+              ))}
+            </ul>
+          </section>
           <section className="section">
             <div className="section-head">
               <div className="section-titles">
-                <Kicker>Try describing it</Kicker>
-                <h2>Search understands what you mean</h2>
-                <p>Formats, genres, themes, status, length and "similar to". The parsing runs on your device.</p>
+                                <h2>Try describing it</h2>
+                <p>Search understands formats, genres, themes, length and "similar to", on your device.</p>
               </div>
             </div>
             <div className="example-list">
@@ -419,30 +475,6 @@ export default function Search() {
               ))}
             </div>
           </section>
-          {(trending.data?.items.length ?? 0) > 0 && (
-            <section className="section">
-              <div className="section-head">
-                <div className="section-titles">
-                  <h2>
-                    <TrendingUp size={20} style={{ verticalAlign: -2, marginRight: 6 }} />
-                    Rising this year
-                  </h2>
-                  <p>Most-followed series added in the last 12 months</p>
-                </div>
-              </div>
-              <ol className="trend-list">
-                {trending.data!.items.slice(0, 8).map((t, n) => (
-                  <li key={t.key}>
-                    <Link to={titlePath(t)}>
-                      <span className="trend-no">{n + 1}</span>
-                      <Cover src={t.cover} title={t.title} sizes="40px" className="cover-sm" />
-                      <span className="trend-title">{t.title}</span>
-                    </Link>
-                  </li>
-                ))}
-              </ol>
-            </section>
-          )}
         </div>
       )}
 
