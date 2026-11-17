@@ -93,7 +93,10 @@ export default function Reader() {
   const prev = idx > 0 ? list[idx - 1] : undefined;
   const next = idx >= 0 ? list[idx + 1] : undefined;
 
-  const startPage = Number(params.get("p") ?? (prog?.chapterId === chapterId ? prog.page : 0)) || 0;
+  // a synchronous position mirror covers reloads that land before the IndexedDB write commits
+  const mirror = chapterId ? readPos(chapterId) : undefined;
+  const fresh = mirror && (prog?.chapterId !== chapterId || mirror.t > (prog?.updatedAt ?? 0)) ? mirror : undefined;
+  const startPage = Number(params.get("p") ?? (fresh ? fresh.page : prog?.chapterId === chapterId ? prog.page : 0)) || 0;
   const [page, setPage] = useState(startPage);
   const [controls, setControls] = useState(true);
   const [panel, setPanel] = useState(false);
@@ -133,15 +136,22 @@ export default function Reader() {
   const anchor = useRef<{ page: number; offset: number } | null>(null);
   const latest = useRef({ page, reachedEnd });
   latest.current = { page, reachedEnd };
+  // true while a restored position is being held in place; programmatic scrolls then are not reader intent
+  const pinning = useRef(false);
   const save = useCallback(
     (finished = latest.current.reachedEnd) => {
       if (!title || !chapter || !count) return;
+      // measure at save time: images above may have changed height since the last scroll event
+      if (mode === "vertical" && scroller.current && !pinning.current) anchor.current = measureAnchor(scroller.current) ?? anchor.current;
       const a = mode === "vertical" ? anchor.current : null;
       const p = Math.min(a ? a.page : latest.current.page, count - 1);
+      writePos(chapter.id, p, a?.offset);
       void saveProgress({ title, chapterId: chapter.id, chapterNumber: chapter.number, chapterTitle: chapter.title, page: p, offset: a?.offset, pageCount: count, fraction: finished ? 1 : (p + 1) / count, finished, lastChapterNumber: list.at(-1)?.number });
     },
     [title, chapter, count, list, mode],
   );
+  const saveRef = useRef(save);
+  saveRef.current = save;
   useEffect(() => {
     if (!count) return;
     const tm = setTimeout(() => save(), 900);
@@ -155,6 +165,17 @@ export default function Reader() {
     return () => void off();
   }, [save]);
   useEffect(() => () => save(), [save]);
+  // web reload / tab close / app switch: lifecycle.onPause does not fire there
+  useEffect(() => {
+    const flush = () => save();
+    const vis = () => document.visibilityState === "hidden" && save();
+    window.addEventListener("pagehide", flush);
+    document.addEventListener("visibilitychange", vis);
+    return () => {
+      window.removeEventListener("pagehide", flush);
+      document.removeEventListener("visibilitychange", vis);
+    };
+  }, [save]);
 
   // ------------------------------------------------------------ vertical tracking
   useEffect(() => {
@@ -185,23 +206,27 @@ export default function Reader() {
   useEffect(() => {
     if (mode !== "vertical" || !count) return;
     let raf = 0;
+    let last = 0;
+    let trailing = 0;
     const on = () => {
       cancelAnimationFrame(raf);
       raf = requestAnimationFrame(() => {
-        const els = scroller.current?.querySelectorAll<HTMLElement>(".rd-page");
-        if (!els) return;
-        for (const el of els) {
-          const r = el.getBoundingClientRect();
-          if (r.bottom > 0) {
-            anchor.current = { page: Number(el.dataset.index), offset: r.height ? Math.max(0, -r.top) / r.height : 0 };
-            break;
-          }
+        if (!scroller.current) return;
+        anchor.current = measureAnchor(scroller.current) ?? anchor.current;
+        // throttled save (~500ms) plus a trailing save once scrolling settles
+        const now = Date.now();
+        if (restored.current && !pinning.current && now - last > 500) {
+          last = now;
+          saveRef.current();
         }
+        clearTimeout(trailing);
+        trailing = window.setTimeout(() => restored.current && !pinning.current && saveRef.current(), 250);
       });
     };
     window.addEventListener("scroll", on, { passive: true });
     return () => {
       cancelAnimationFrame(raf);
+      clearTimeout(trailing);
       window.removeEventListener("scroll", on);
     };
   }, [mode, count, chapterId]);
@@ -212,7 +237,7 @@ export default function Reader() {
     if (mode !== "vertical" || !count || !title || restored.current) return;
     restored.current = true;
     anchor.current = null;
-    const offset = prog?.chapterId === chapterId && prog.page === startPage ? (prog.offset ?? 0) : 0;
+    const offset = fresh && fresh.page === startPage ? (fresh.offset ?? 0) : prog?.chapterId === chapterId && prog.page === startPage ? (prog.offset ?? 0) : 0;
     if (startPage <= 0 && offset <= 0) return void window.scrollTo(0, 0);
     const root = scroller.current;
     if (!root) return;
@@ -225,7 +250,9 @@ export default function Reader() {
     requestAnimationFrame(pin);
     const ro = new ResizeObserver(() => pin());
     ro.observe(root);
+    pinning.current = true;
     const stop = () => {
+      pinning.current = false;
       ro.disconnect();
       clearTimeout(tm);
       for (const e of ["wheel", "touchstart", "keydown", "pointerdown"]) window.removeEventListener(e, stop);
@@ -505,7 +532,8 @@ export default function Reader() {
         {body}
       </main>
 
-      <footer className="rd-bottom" aria-hidden={!controls} inert={!controls || undefined}>
+      {count > 0 && (
+        <footer className="rd-bottom" aria-hidden={!controls} inert={!controls || undefined}>
         <button className="icon-btn" disabled={!(rtl ? next : prev)} onClick={() => goChapter(rtl ? next : prev)} aria-label={rtl ? "Next chapter" : "Previous chapter"}>
           <ChevronLeft size={20} />
         </button>
@@ -539,7 +567,8 @@ export default function Reader() {
         <button className="icon-btn" disabled={!(rtl ? prev : next)} onClick={() => goChapter(rtl ? prev : next)} aria-label={rtl ? "Previous chapter" : "Next chapter"}>
           <ChevronRight size={20} />
         </button>
-      </footer>
+        </footer>
+      )}
 
       <Sheet open={chList} onClose={() => setChList(false)} title="Chapters">
         <ol className="rd-chlist" onClick={(e) => e.stopPropagation()}>
@@ -626,4 +655,33 @@ export default function Reader() {
       </Sheet>
     </div>
   );
+}
+
+const POS_KEY = "dawghwa.pos.";
+function readPos(chapterId: string): { page: number; offset?: number; t: number } | undefined {
+  try {
+    const v = JSON.parse(localStorage.getItem(POS_KEY + chapterId) ?? "null");
+    return v && typeof v.page === "number" && typeof v.t === "number" ? v : undefined;
+  } catch {
+    return undefined;
+  }
+}
+function writePos(chapterId: string, page: number, offset?: number) {
+  try {
+    localStorage.setItem(POS_KEY + chapterId, JSON.stringify({ page, offset, t: Date.now() }));
+    // keep the mirror small: drop all but the 20 most recent chapters
+    const keys = Object.keys(localStorage).filter((k) => k.startsWith(POS_KEY));
+    if (keys.length > 20) keys.map((k) => [k, readPos(k.slice(POS_KEY.length))?.t ?? 0] as const).sort((a, b) => a[1] - b[1]).slice(0, keys.length - 20).forEach(([k]) => localStorage.removeItem(k));
+  } catch {
+    /* storage full or blocked: IndexedDB progress still applies */
+  }
+}
+
+/** The page at the top of the viewport and how far into it (0–1) the reader has scrolled. */
+function measureAnchor(root: HTMLElement): { page: number; offset: number } | null {
+  for (const el of root.querySelectorAll<HTMLElement>(".rd-page")) {
+    const r = el.getBoundingClientRect();
+    if (r.bottom > 0) return { page: Number(el.dataset.index), offset: r.height ? Math.max(0, -r.top) / r.height : 0 };
+  }
+  return null;
 }

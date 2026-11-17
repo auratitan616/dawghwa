@@ -10,7 +10,8 @@ Acceptance requires all of the following:
 | Round | Build | Blueprint | Visual | UX | Reader | Features | Responsive | A11y | Perf | Code | Overall | Verdict |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | 0 | baseline `main` | 5.0 | 7.0 | 6.5 | 6.5 | 8.0 | 7.5 | 7.5 | 7.5 | 7.5 | 6.7 | Not accepted |
-| 1 | `feature/blueprint-experience` | pending | | | | | | | | | | |
+| 1 | `feature/blueprint-experience` (6d21757) | 8.0 | 7.5 | 7.0 | 8.0 | 8.5 | 6.5 | 7.5 | 8.0 | 7.5 | 7.6 | Not accepted (C2 partial, C3 new) |
+| 2 | `fix/critic-round1` | pending | | | | | | | | | | |
 
 ## Automated checks (latest)
 
@@ -18,10 +19,10 @@ Acceptance requires all of the following:
 | --- | --- |
 | `tsc -b` | Pass |
 | `eslint --max-warnings 0` | Pass |
-| `vitest run` | 49 out of 49 pass |
+| `vitest run` | 50 out of 50 pass |
 | `vite build` | Pass, no source maps |
-| Playwright e2e (Pixel 7 and desktop, production API) | 16 out of 16 pass |
-| CI (`web`, `android`) on PR #3 | See the PR |
+| Playwright e2e (Pixel 7 and desktop, production API) | 17 pass, 1 phone-only skip on desktop |
+| CI (`web`, `android`) on PR #4 | See the PR |
 
 ## Viewports checked
 

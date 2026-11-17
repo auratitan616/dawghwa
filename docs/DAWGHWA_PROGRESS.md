@@ -31,7 +31,18 @@ The latest entry is first. Every milestone passed typecheck, lint, unit tests an
 
 SEO is 54 to 58 on `/welcome` and `/search` because those pages are deliberately `noindex`. It is 92 elsewhere. The raw reports are in `lighthouse/` in the workspace, outside the repo.
 
+### PR #3 merged (7ef87a1), production verified
+
+Deep links, `/api/health` and `/api/catalog` return 200 on dawghwa.vercel.app. Browser smoke test on mobile and desktop: the hero, shelves, title page and search all render.
+
+## Milestone: critic round 1 fixes (`fix/critic-round1`)
+
+Round 1 scored 7.6 (not accepted). Fixes:
+- C3: the title synopsis and About stat strip no longer widen phone layouts, and the sticky "Read" CTA is on screen at 360, 390 and 412px (new e2e test).
+- C2: vertical resume measures the anchor at save time, saves on scroll (throttled to 500ms plus a trailing save), flushes on `pagehide` and `visibilitychange`, and mirrors the position synchronously to localStorage so a reload 120ms after scrolling restores it. `scripts/qa/resume-wheel-check.mjs` restores the same page to within 2px of content after wheel scrolling.
+- M11: the hero CTA says "View series" when a title has no readable chapters. M12: synopses render as plain text (markdown stripped), and the About sheet shows Status and does not clip. M13: long recent searches ellipsize. M14: the title error and loading states keep a header with Back and Home, the reader error has padding, and the empty bottom bar is hidden. M8: "Search all sources" is hidden when the API is unreachable.
+- P11: no "Understood" chip for exact title matches. P12: icons on the step-3 chips. P13: 24px hero dots. P14: "Latest ch. N" when it differs from the available count. P15: Undo on hero Save. P16: failing home shelves collapse into one banner with a single Retry. Broken hero art falls back to the brand gradient.
+
 ### Next
 
-- Independent critic round 1, then fixes until acceptance.
-- Merge PR #3, then verify the production deployment in a browser.
+- Critic round 2, then iterate until acceptance.

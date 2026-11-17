@@ -104,3 +104,17 @@ export function isMature(t?: Title): boolean {
   if (m.contentRating && ["suggestive", "erotica", "pornographic"].includes(m.contentRating)) return true;
   return [...(m.genres ?? []), ...(m.tags ?? [])].some((g) => MATURE_TAGS.has(g.toLowerCase()));
 }
+
+/** Source synopses arrive as markdown/BBCode-ish text; show them as clean prose. */
+export function plainText(md: string): string {
+  return md
+    .replace(/<[^>]+>/g, "")
+    .replace(/\[([^\]]+)\]\([^)]*\)/g, "$1") // [label](url)
+    .replace(/\[\/?[a-z]+(=[^\]]*)?\]/gi, "") // [b] [/url]
+    .replace(/^\s{0,3}(#{1,6}|>)\s*/gm, "")
+    .replace(/^\s*([-*_]\s*){3,}$/gm, "")
+    .replace(/(\*\*|__)(.+?)\1/g, "$2")
+    .replace(/(^|\W)[*_]([^*_\n]+)[*_](?=\W|$)/g, "$1$2")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}

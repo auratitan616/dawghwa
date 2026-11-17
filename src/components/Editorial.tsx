@@ -2,7 +2,7 @@ import { memo, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { Star } from "lucide-react";
 import { prefetchTitle } from "@/lib/query";
-import { compactNumber, kindLabel, statusLabel, titlePath, type Title, isMature } from "@/lib/titles";
+import { compactNumber, kindLabel, plainText, statusLabel, titlePath, type Title, isMature } from "@/lib/titles";
 import { Cover } from "./Cover";
 
 /** "CH.042" style chapter numeral: zero-padded integer part, decimals kept. */
@@ -48,7 +48,7 @@ export const WideCard = memo(function WideCard({ title: t, reason }: { title: Ti
       <span className="wide-body">
         <span className="card-title">{t.title}</span>
         <span className="wide-facts">{facts(t)}</span>
-        {reason ? <span className="card-reason">{reason}</span> : t.meta?.description ? <span className="wide-desc">{t.meta.description}</span> : null}
+        {reason ? <span className="card-reason">{reason}</span> : t.meta?.description ? <span className="wide-desc">{plainText(t.meta.description)}</span> : null}
       </span>
     </Link>
   );
@@ -73,7 +73,7 @@ export function LeadCard({ title: t, label }: { title: Title; label?: string }) 
           ) : null}
           {t.follows ? ` · ${compactNumber(t.follows)} followers` : ""}
         </span>
-        {t.meta?.description && <span className="lead-desc">{t.meta.description}</span>}
+        {t.meta?.description && <span className="lead-desc">{plainText(t.meta.description)}</span>}
         {genres.length > 0 && (
           <span className="lead-tags">
             {genres.map((g) => (

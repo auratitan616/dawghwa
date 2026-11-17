@@ -1784,7 +1784,9 @@
 }
 .stat-strip {
   display: grid;
-  grid-template-columns: repeat(var(--n, 3), minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 96px), 1fr));
+  max-width: 100%;
+  min-width: 0;
   margin: 0;
   border: 2px solid var(--frame);
   border-radius: var(--radius-sm);
@@ -1795,8 +1797,8 @@
   padding: 10px 12px;
   min-width: 0;
 }
-.stat-strip > div + div {
-  border-left: 2px solid var(--frame);
+.stat-strip > div {
+  box-shadow: -2px 0 0 var(--frame), 0 -2px 0 var(--frame);
 }
 .stat-strip dt {
   font-size: var(--text-2xs);
@@ -1813,9 +1815,10 @@
   font-family: var(--font-display);
   font-stretch: var(--label-stretch);
   font-weight: 800;
-  font-size: 1.35rem;
+  font-size: 1.2rem;
   line-height: 1.1;
-  white-space: nowrap;
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 .stat-strip dd svg {
   color: var(--ink-3);
@@ -2970,14 +2973,14 @@ fieldset legend { padding: 0; margin-bottom: var(--space-2); }
   position: absolute;
   left: 0;
   right: 0;
-  bottom: 14px;
+  bottom: 13px;
   display: flex;
   justify-content: center;
   gap: 0;
 }
 .hero-dots button {
-  width: 22px;
-  height: 22px;
+  width: 24px;
+  height: 24px;
   display: grid;
   place-items: center;
   background: none;
@@ -3272,8 +3275,13 @@ fieldset legend { padding: 0; margin-bottom: var(--space-2); }
 }
 .tp-synopsis {
   all: unset;
+  box-sizing: border-box;
   cursor: pointer;
-  max-width: 62ch;
+  width: 100%;
+  min-width: 0;
+  max-width: min(62ch, 100%);
+  overflow-wrap: anywhere;
+  text-align: inherit;
   color: var(--ink-2);
   font-size: var(--text-sm);
   line-height: 1.55;
@@ -3578,3 +3586,23 @@ fieldset legend { padding: 0; margin-bottom: var(--space-2); }
   /* header content lines up with the centred 1440px page column */
   .topbar { padding-inline: max(var(--gutter), calc((100% - 1440px) / 2 + var(--gutter))); }
 }
+
+/* hero: failed key art falls back to the brand gradient, never a broken-image glyph */
+.hero-art, .hero-cover { background: radial-gradient(120% 80% at 70% 20%, var(--lavender-soft), transparent 60%), var(--surface); }
+.hero-slide img[data-failed] { visibility: hidden; }
+
+/* C3: nothing on the title page may widen the layout viewport */
+.tp, .tp-about, .tp-panel, .tp-body, .tp-main { min-width: 0; max-width: 100%; }
+.tp-about .synopsis { overflow-wrap: anywhere; white-space: pre-line; }
+.tp-about .credits dd { overflow-wrap: anywhere; min-width: 0; }
+.sheet { overflow-x: hidden; box-sizing: border-box; max-width: 100vw; }
+.sheet > *, .sheet .tp-about { min-width: 0; max-width: 100%; }
+.sheet-head h2 { min-width: 0; overflow-wrap: anywhere; }
+
+/* M13: long recent queries ellipsize; filter chip rows scroll inside themselves */
+.recent-list li { display: grid; grid-template-columns: minmax(0, 1fr) auto; min-width: 0; }
+.recent-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.search-filters, .filter-row, .chips.understood { min-width: 0; max-width: 100%; }
+/* M14: reader error/empty states keep a readable measure away from the screen edges */
+.rd-body > .state { padding-inline: max(var(--space-5), env(safe-area-inset-left)); max-width: 46ch; margin-inline: auto; box-sizing: border-box; text-align: center; }
+.tp-error { padding-top: var(--space-8); }
