@@ -25,7 +25,9 @@ jobs:
       - run: npm run build
         env:
           SITE_URL: ${{ vars.SITE_URL }}
-      - name: End-to-end (UI-only; live-data tests skip without an API)
+      - name: End-to-end (live-data tests run against DAWGHWA_API_URL when set, and skip if it is unreachable)
+        env:
+          DAWGHWA_API_DEV: ${{ vars.DAWGHWA_API_URL }}
         run: npx playwright install --with-deps chromium && npm run e2e
       - uses: actions/upload-artifact@v4
         if: failure()
@@ -56,6 +58,9 @@ jobs:
           # Without a configured API the APK is a UI-only smoke build.
           ALLOW_NO_API: ${{ vars.DAWGHWA_API_URL == '' && '1' || '0' }}
         run: npm run android:build
+      - name: Check the APK bundle points at the configured API
+        if: vars.DAWGHWA_API_URL != ''
+        run: grep -rqF "${{ vars.DAWGHWA_API_URL }}" android/app/src/main/assets/public/assets/
       - uses: actions/upload-artifact@v4
         with:
           name: dawghwa-debug-apk
