@@ -4,14 +4,15 @@ import { History, LayoutGrid, List, Search as SearchIcon, X } from "lucide-react
 import { TitleGrid } from "@/components/Grid";
 import { Cover } from "@/components/Cover";
 import { EmptyState } from "@/components/States";
-import { Kicker, Sticker } from "@/components/Editorial";
+import { Sticker } from "@/components/Editorial";
 import { useHead } from "@/lib/seo";
 import { allCollections, useUser } from "@/lib/store/user";
 import type { LibraryRecord, LibraryStatus, ProgressRecord } from "@/lib/store/db";
 import { kindLabel, readerPath, titlePath, type Title } from "@/lib/titles";
 import { STATUS_LABELS } from "./TitlePage";
 
-type Tab = LibraryStatus | "all" | "favorites" | `c:${string}`;
+type Tab = LibraryStatus | "recent" | "all" | "favorites" | `c:${string}`;
+type Scope = "all" | "unread";
 type View = "grid" | "list";
 const SORTS = { updated: "Recently changed", added: "Date added", title: "Title A-Z", progress: "Most read" } as const;
 const VIEW_KEY = "dawghwa:library-view";
@@ -28,7 +29,7 @@ function seriesProgress(t: Title, p?: ProgressRecord): { label: string; fraction
   return { label, fraction: last && p.maxReadNumber ? Math.min(1, p.maxReadNumber / last) : undefined };
 }
 
-function LibraryRow({ t, r, p }: { t: Title; r: LibraryRecord; p?: ProgressRecord }) {
+function LibraryRow({ t, r, p }: { t: Title; r?: LibraryRecord; p?: ProgressRecord }) {
   const prog = seriesProgress(t, p);
   const resume = p?.pageCount ? readerPath(t, p.chapterId, p.page || undefined) : undefined;
   return (
@@ -38,8 +39,8 @@ function LibraryRow({ t, r, p }: { t: Title; r: LibraryRecord; p?: ProgressRecor
         <span className="lib-row-body">
           <span className="lib-row-title">{t.title}</span>
           <span className="lib-row-meta">
-            {r.status && <Sticker tone={STATUS_TONE[r.status] ?? "lime"}>{STATUS_LABELS[r.status]}</Sticker>}
-            {r.favorite && <span className="lib-fav">Favourite</span>}
+            {r?.status && <Sticker tone={STATUS_TONE[r.status] ?? "lime"}>{STATUS_LABELS[r.status]}</Sticker>}
+            {r?.favorite && <span className="lib-fav">Favourite</span>}
             <span>{[kindLabel(t.meta?.kind), prog?.label].filter(Boolean).join(" · ")}</span>
           </span>
           {prog?.fraction !== undefined && (
@@ -73,30 +74,41 @@ export default function Library() {
   useHead({ title: "Library", noindex: true });
   const collections = useMemo(() => allCollections(state), [state]);
   const recs = useMemo(() => [...library.values()].filter((r) => r.status || r.favorite || r.collections.length), [library]);
+  const scope: Scope = params.get("only") === "unread" ? "unread" : "all";
+  const unread = (t: Title, p?: ProgressRecord) => Boolean(p && t.latestChapter && t.latestChapter > (p.maxReadNumber || 0));
   const match = (r: LibraryRecord) => (tab === "all" ? Boolean(r.status || r.favorite || r.collections.length) : tab === "favorites" ? r.favorite : tab.startsWith("c:") ? r.collections.includes(tab.slice(2)) : r.status === tab);
+  // Recent: every series opened in the reader on this profile, saved or not, newest first.
+  const recent = useMemo(
+    () =>
+      [...progress.values()]
+        .filter((p) => !p.hidden)
+        .sort((a, b) => b.updatedAt - a.updatedAt)
+        .map((p) => ({ r: library.get(p.titleKey), t: titles.get(p.titleKey), p }))
+        .filter((x): x is { r: LibraryRecord | undefined; t: Title; p: ProgressRecord } => Boolean(x.t)),
+    [progress, library, titles],
+  );
   const rows = useMemo(() => {
     const f = find.trim().toLowerCase();
-    const xs = recs
-      .filter(match)
-      .map((r) => ({ r, t: titles.get(r.titleKey), p: progress.get(r.titleKey) }))
-      .filter((x): x is { r: LibraryRecord; t: Title; p: ProgressRecord | undefined } => Boolean(x.t))
+    const base: { r?: LibraryRecord; t: Title; p?: ProgressRecord }[] =
+      tab === "recent"
+        ? recent
+        : recs
+            .filter(match)
+            .map((r) => ({ r, t: titles.get(r.titleKey), p: progress.get(r.titleKey) }))
+            .filter((x): x is { r: LibraryRecord; t: Title; p: ProgressRecord | undefined } => Boolean(x.t));
+    const xs = base
+      .filter((x) => scope === "all" || unread(x.t, x.p))
       .filter((x) => !f || x.t.title.toLowerCase().includes(f) || x.t.meta?.altTitles?.some((a) => a.toLowerCase().includes(f)));
-    xs.sort((a, b) => (sort === "title" ? a.t.title.localeCompare(b.t.title) : sort === "added" ? b.r.addedAt - a.r.addedAt : sort === "progress" ? readCount(b.p) - readCount(a.p) : b.r.updatedAt - a.r.updatedAt));
+    if (tab !== "recent") xs.sort((a, b) => (sort === "title" ? a.t.title.localeCompare(b.t.title) : sort === "added" ? (b.r?.addedAt ?? 0) - (a.r?.addedAt ?? 0) : sort === "progress" ? readCount(b.p) - readCount(a.p) : (b.r?.updatedAt ?? 0) - (a.r?.updatedAt ?? 0)));
     return xs;
-  }, [recs, tab, sort, titles, progress, find]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [recs, recent, tab, sort, titles, progress, find, scope]); // eslint-disable-line react-hooks/exhaustive-deps
   const count = (f: (r: LibraryRecord) => boolean) => recs.filter(f).length;
   const tabs: [Tab, string, number][] = [
-    ["all", "All", recs.length],
+    ["recent", "Recent", recent.length],
+    ["all", "Saved", recs.length],
     ...(Object.keys(STATUS_LABELS) as LibraryStatus[]).map((s): [Tab, string, number] => [s, STATUS_LABELS[s], count((r) => r.status === s)]),
     ["favorites", "Favourites", count((r) => r.favorite)],
     ...collections.map((c): [Tab, string, number] => [`c:${c}`, c, count((r) => r.collections.includes(c))]),
-  ];
-  const chaptersRead = useMemo(() => [...progress.values()].reduce((n, p) => n + readCount(p), 0), [progress]);
-  const stats = [
-    { label: "Saved", value: recs.length },
-    { label: "Reading", value: count((r) => r.status === "reading") },
-    { label: "Completed", value: count((r) => r.status === "completed") },
-    { label: "Chapters read", value: chaptersRead },
   ];
   const tabLabel = tabs.find((t) => t[0] === tab)?.[1] ?? "this list";
 
@@ -104,33 +116,54 @@ export default function Library() {
     <div className="page library-page">
       <header className="lib-head">
         <div>
-          <Kicker>Your shelf</Kicker>
           <h1>Library</h1>
           <p className="muted">Saved on this device for {state.profile?.name ?? "this profile"}.</p>
         </div>
-        <Link className="btn btn-sm" to="/history">
-          <History size={16} /> History
-        </Link>
+        <div className="lib-head-actions">
+          <Link className="icon-btn" to="/history" aria-label="Reading history" title="Reading history">
+            <History size={20} />
+          </Link>
+          <div className="segmented lib-view" role="radiogroup" aria-label="View">
+            <button role="radio" aria-checked={view === "grid"} aria-label="Grid" onClick={() => setView("grid")}>
+              <LayoutGrid size={16} />
+            </button>
+            <button role="radio" aria-checked={view === "list"} aria-label="List" onClick={() => setView("list")}>
+              <List size={16} />
+            </button>
+          </div>
+        </div>
       </header>
-      {recs.length > 0 && (
-        <dl className="stat-strip lib-stats" style={{ ["--n" as string]: stats.length }}>
-          {stats.map((x) => (
-            <div key={x.label}>
-              <dt>{x.label}</dt>
-              <dd>{x.value.toLocaleString()}</dd>
-            </div>
-          ))}
-        </dl>
-      )}
-      <div className="tabs" role="tablist" aria-label="Library lists">
+      <div className="tabs lib-tabs" role="tablist" aria-label="Library lists">
         {tabs.map(([id, label, n]) => (
           <button key={id} role="tab" aria-selected={tab === id} onClick={() => setParams(id === "all" ? {} : { tab: id }, { replace: true })}>
             {label}
-            <span className="count">{n}</span>
+            {n > 0 && <span className="count">{n}</span>}
           </button>
         ))}
       </div>
-      {recs.length > 0 && (
+      <div className="lib-scope" role="radiogroup" aria-label="Show">
+        {(
+          [
+            ["all", "All series"],
+            ["unread", "With unread chapters"],
+          ] as const
+        ).map(([id, label]) => (
+          <button
+            key={id}
+            role="radio"
+            aria-checked={scope === id}
+            onClick={() => {
+              const next = new URLSearchParams(params);
+              if (id === "all") next.delete("only");
+              else next.set("only", id);
+              setParams(next, { replace: true });
+            }}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+      {tab !== "recent" && recs.length > 4 && (
         <div className="lib-tools">
           <label className="lib-find">
             <SearchIcon size={16} aria-hidden="true" />
@@ -148,14 +181,6 @@ export default function Library() {
               </option>
             ))}
           </select>
-          <div className="segmented lib-view" role="radiogroup" aria-label="View">
-            <button role="radio" aria-checked={view === "grid"} aria-label="Grid" onClick={() => setView("grid")}>
-              <LayoutGrid size={16} />
-            </button>
-            <button role="radio" aria-checked={view === "list"} aria-label="List" onClick={() => setView("list")}>
-              <List size={16} />
-            </button>
-          </div>
         </div>
       )}
       {rows.length ? (
@@ -169,18 +194,25 @@ export default function Library() {
           </ul>
         )
       ) : find ? (
-        <EmptyState title={`No saved title matches "${find}"`} action={<button className="btn" onClick={() => setFind("")}>Clear search</button>} />
+        <EmptyState center title={`No saved title matches "${find}"`} action={<button className="btn" onClick={() => setFind("")}>Clear search</button>} />
+      ) : scope === "unread" ? (
+        <EmptyState center title="You're all caught up" pose="done">
+          No series in {tabLabel} has chapters newer than the last one you finished.
+        </EmptyState>
       ) : (
         <EmptyState
-          title={tab === "all" ? "Your library is empty" : `Nothing in ${tabLabel} yet`}
+          center
+          title={tab === "all" ? "Your library is empty" : tab === "recent" ? "No recently read series" : `Nothing in ${tabLabel} yet`}
           pose="empty"
           action={
-            <Link className="btn btn-primary" to="/discover">
-              Find something to read
-            </Link>
+            tab === "all" || tab === "recent" ? (
+              <Link className="btn btn-primary" to="/discover">
+                Find something to read
+              </Link>
+            ) : undefined
           }
         >
-          {tab === "all" ? "Lost in another world? Add titles from any series page, or long-press a cover. Collections are created from a title's menu." : "Titles you give this status will show up here."}
+          {tab === "all" ? "Save a series from its page, or long-press any cover." : tab === "recent" ? "Series you open in the reader appear here." : "Titles you give this status will show up here."}
         </EmptyState>
       )}
     </div>

@@ -24,7 +24,8 @@
       (function () {
         try {
           var s = JSON.parse(localStorage.getItem("dawghwa:settings") || "{}");
-          var t = s.theme === "light" || s.theme === "dark" ? s.theme : matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark";
+          // Dark-first: dark unless the reader chose light, or chose to follow the system.
+          var t = s.theme === "light" ? "light" : s.theme === "system" && matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark";
           document.documentElement.dataset.theme = t;
         } catch (e) {}
       })();

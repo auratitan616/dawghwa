@@ -244,7 +244,7 @@ export default function Profile() {
         <h2 id="appearance-h">Appearance</h2>
         <div className="settings-row">
           <span className="label">Theme</span>
-          <Segmented label="Theme" value={settings.theme} options={[["system", "System"], ["dark", "Dark"], ["light", "Light"]]} onChange={(v) => updateSettings({ theme: v })} />
+          <Segmented label="Theme" value={settings.theme} options={[["dark", "Dark"], ["light", "Light"], ["system", "System"]]} onChange={(v) => updateSettings({ theme: v })} />
         </div>
         <div className="settings-row">
           <span className="label">Reduce motion</span>

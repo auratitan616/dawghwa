@@ -25,7 +25,7 @@ export interface Settings {
 }
 
 export const DEFAULT_SETTINGS: Settings = {
-  theme: "system",
+  theme: "dark",
   reduceMotion: "system",
   readerMode: "auto",
   direction: "rtl",

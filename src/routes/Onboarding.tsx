@@ -1,6 +1,8 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type ComponentType } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { Brand } from "@/components/Brand";
+import {
+  Bot, Brain, Briefcase, ChevronLeft, CloudRain, Crown, DoorOpen, Drama, Fingerprint, Flame, Ghost, GraduationCap, Heart, Hourglass, Landmark, RefreshCcw, Rocket, Shield, Siren, Skull, Smile, Sparkles, Sun, Swords, Trophy,
+} from "lucide-react";
 import { Mascot } from "@/components/Mascot";
 import { useVocabulary } from "@/lib/query";
 import { updateProfile, useUser } from "@/lib/store/user";
@@ -13,6 +15,9 @@ const FORMATS: [string, string, string][] = [
 ];
 // a curated first screen; the full vocabulary from the API fills in the rest
 const STARTER = ["Action", "Fantasy", "Romance", "Comedy", "Drama", "Isekai", "Thriller", "Horror", "Slice of Life", "Psychological", "Mystery", "Sci-Fi", "Sports", "Historical", "Martial Arts", "Reincarnation", "Time Travel", "Villainess", "Monsters", "Survival", "Office Workers", "School Life", "Tragedy", "Mecha"];
+const ICONS: Record<string, ComponentType<{ size?: number; "aria-hidden"?: boolean }>> = {
+  Action: Swords, Fantasy: Sparkles, Romance: Heart, Comedy: Smile, Drama, Isekai: DoorOpen, Thriller: Siren, Horror: Ghost, "Slice of Life": Sun, Psychological: Brain, Mystery: Fingerprint, "Sci-Fi": Rocket, Sports: Trophy, Historical: Landmark, "Martial Arts": Shield, Reincarnation: RefreshCcw, "Time Travel": Hourglass, Villainess: Crown, Monsters: Skull, Survival: Flame, "Office Workers": Briefcase, "School Life": GraduationCap, Tragedy: CloudRain, Mecha: Bot,
+};
 const AVOID = ["Gore", "Sexual Violence", "Boys' Love", "Girls' Love", "Harem", "Tragedy"];
 
 /** Short, skippable cold-start: everything chosen here is editable later in Profile. */
@@ -31,14 +36,32 @@ export default function Onboarding() {
   const starter = vocab.data ? STARTER.filter((g) => known.has(g)) : STARTER;
   const avoidList = vocab.data ? AVOID.filter((g) => known.has(g)) : AVOID;
   const toggle = (xs: string[], set: (v: string[]) => void, v: string) => set(xs.includes(v) ? xs.filter((x) => x !== v) : [...xs, v]);
+  const [finding, setFinding] = useState(false);
+  const timer = useRef<number>(undefined);
+  useEffect(() => () => window.clearTimeout(timer.current), []);
   const finish = async (save: boolean) => {
     if (profile) await updateProfile({ onboarded: true, prefs: save ? { ...profile.prefs, kinds, genres, avoid } : profile.prefs });
-    nav(editing ? "/profile" : "/", { replace: true });
+    const go = () => nav(editing ? "/profile" : "/", { replace: true });
+    // A short "finding stories" beat after real choices, as in the blueprint. Skip and edits go straight on.
+    if (!save || editing || matchMedia("(prefers-reduced-motion: reduce)").matches) return go();
+    setFinding(true);
+    timer.current = window.setTimeout(go, 1100);
   };
   const steps = [
     {
-      title: "What do you like to read?",
-      body: "Pick any formats. Leave it empty if you read everything.",
+      title: "What stories do you like?",
+      body: "Select categories to help us find stories for you.",
+      content: (
+        <div className="onboard-chips">
+          {starter.map((g) => (
+            <OnboardChip key={g} label={g} on={genres.includes(g)} onClick={() => toggle(genres, setGenres, g)} />
+          ))}
+        </div>
+      ),
+    },
+    {
+      title: "Which formats do you read?",
+      body: "Pick any. Leave it empty if you read everything.",
       content: (
         <div className="stack">
           {FORMATS.map(([k, l, d]) => (
@@ -53,69 +76,71 @@ export default function Onboarding() {
       ),
     },
     {
-      title: "Pick a few genres",
-      body: "Three or more gives better first picks. Your reading soon matters more than these.",
-      content: (
-        <div className="chips">
-          {starter.map((g) => (
-            <button key={g} className="chip chip-lg" aria-pressed={genres.includes(g)} onClick={() => toggle(genres, setGenres, g)}>
-              {g}
-            </button>
-          ))}
-        </div>
-      ),
-    },
-    {
       title: "Anything to keep out?",
       body: "These are filtered from recommendations. You can still find them in search.",
       content: (
-        <div className="chips">
+        <div className="onboard-chips">
           {avoidList.map((g) => (
-            <button key={g} className="chip chip-lg chip-neg" aria-pressed={avoid.includes(g)} onClick={() => toggle(avoid, setAvoid, g)}>
-              {g}
-            </button>
+            <OnboardChip key={g} label={g} neg on={avoid.includes(g)} onClick={() => toggle(avoid, setAvoid, g)} />
           ))}
         </div>
       ),
     },
   ];
   const s = steps[step]!;
+  const last = step === steps.length - 1;
+  const needsPick = step === 0 && !editing;
+  if (finding)
+    return (
+      <div className="onboard-finding" role="status">
+        <Mascot pose="reading" size={120} />
+        <p>Finding stories for you</p>
+      </div>
+    );
   return (
     <div className="onboard">
-      <header className="cluster" style={{ justifyContent: "space-between" }}>
-        <Brand />
-        <button className="btn btn-ghost" onClick={() => void finish(false)}>
+      <header className="onboard-head">
+        {step > 0 ? (
+          <button className="icon-btn" onClick={() => setStep(step - 1)} aria-label="Back">
+            <ChevronLeft size={22} />
+          </button>
+        ) : (
+          <span />
+        )}
+        <span className="onboard-steps" aria-label={`Step ${step + 1} of ${steps.length}`} role="img">
+          {steps.map((_, i) => (
+            <i key={i} data-on={i <= step || undefined} />
+          ))}
+        </span>
+        <button className="onboard-skip" onClick={() => void finish(false)}>
           {editing ? "Cancel" : "Skip"}
         </button>
       </header>
       <main>
-        <Mascot pose="welcome" size={132} />
-        <p className="eyebrow">
-          Step {step + 1} of {steps.length}
-        </p>
         <h1>{s.title}</h1>
-        <p className="muted" style={{ margin: "8px 0 24px" }}>
-          {s.body}
-        </p>
+        <p className="onboard-sub">{s.body}</p>
         {s.content}
       </main>
       <footer className="onboard-foot">
-        <div className="onboard-steps" aria-hidden="true">
-          {steps.map((_, i) => (
-            <i key={i} data-on={i <= step || undefined} />
-          ))}
-        </div>
-        <div className="cluster">
-          {step > 0 && (
-            <button className="btn" onClick={() => setStep(step - 1)}>
-              Back
-            </button>
-          )}
-          <button className="btn btn-primary btn-lg" onClick={() => (step < steps.length - 1 ? setStep(step + 1) : void finish(true))}>
-            {step < steps.length - 1 ? "Next" : editing ? "Save" : "Start reading"}
-          </button>
-        </div>
+        <button
+          className="btn btn-primary btn-lg onboard-next"
+          disabled={needsPick && genres.length === 0}
+          onClick={() => (last ? void finish(true) : setStep(step + 1))}
+        >
+          {last ? (editing ? "Save" : "Done") : "Next"}
+          {step === 0 && genres.length > 0 && <span className="onboard-count">{genres.length}</span>}
+        </button>
       </footer>
     </div>
+  );
+}
+
+function OnboardChip({ label, on, neg, onClick }: { label: string; on: boolean; neg?: boolean; onClick: () => void }) {
+  const Icon = ICONS[label];
+  return (
+    <button className={`onboard-chip${neg ? " is-neg" : ""}`} aria-pressed={on} onClick={onClick}>
+      {Icon && <Icon size={16} aria-hidden />}
+      {label}
+    </button>
   );
 }
