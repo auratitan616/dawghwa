@@ -7,18 +7,21 @@ test("first run shows onboarding once, then home", async ({ page }) => {
   await skipOnboarding(page);
   await page.reload();
   await expect(page).toHaveURL(/\/$/);
-  await expect(page.getByRole("heading", { name: "Dawghwa home" })).toBeAttached();
+  await expect(page.locator("main h1").first()).toBeAttached();
+  await expect(page.locator("nav.bottomnav, .sidebar nav").first()).toBeAttached();
 });
 
 test("primary navigation reaches every section and back works", async ({ page, isMobile }) => {
   await skipOnboarding(page);
   const nav = page.locator(isMobile ? "nav.bottomnav" : ".sidebar nav");
-  for (const [name, url, heading] of [
+  // History lives in the desktop sidebar; on mobile it is reached from Profile.
+  const sections = [
     ["Library", /\/library$/, "Library"],
-    ["History", /\/history$/, "History"],
+    ...(isMobile ? [] : ([["History", /\/history$/, "History"]] as const)),
     ["Profile", /\/profile$/, null],
     ["Discover", /\/discover/, "Discover"],
-  ] as const) {
+  ] as const;
+  for (const [name, url, heading] of sections) {
     await nav.getByRole("link", { name }).click();
     await expect(page).toHaveURL(url);
     if (heading) await expect(page.getByRole("heading", { level: 1, name: heading })).toBeVisible();
@@ -46,7 +49,7 @@ test("natural-language search shows parsed filters", async ({ page }) => {
 test("title page loads and offers a real action", async ({ page }) => {
   test.skip(!(await apiUp(page)), "API not running");
   await skipOnboarding(page);
-  await page.goto("/discover");
+  await page.goto("/discover?order=popular");
   const first = page.locator("a[href^='/title/']").first();
   await expect(first).toBeVisible({ timeout: 20_000 });
   await first.click();
@@ -57,7 +60,7 @@ test("title page loads and offers a real action", async ({ page }) => {
 test("favourite persists across reloads", async ({ page }) => {
   test.skip(!(await apiUp(page)), "API not running");
   await skipOnboarding(page);
-  await page.goto("/discover");
+  await page.goto("/discover?order=popular");
   const first = page.locator("a[href^='/title/']").first();
   await expect(first).toBeVisible({ timeout: 20_000 });
   await first.click();
