@@ -86,6 +86,8 @@ for (const name of vps) {
         else if (a.startsWith("scroll=")) await page.mouse.wheel(0, Number(a.slice(7)));
         else if (a.startsWith("tap")) await page.mouse.click(vp.width / 2, vp.height / 2);
         else if (a.startsWith("wait=")) await page.waitForTimeout(Number(a.slice(5)));
+        else if (a.startsWith("radio=")) await page.getByRole("radio", { name: new RegExp(a.slice(6), "i") }).first().click().catch((e) => errs.push("radio " + e.message.slice(0, 80)));
+        else if (a.startsWith("link=")) await page.getByRole("link", { name: new RegExp(a.slice(5), "i") }).first().click().catch((e) => errs.push("link " + e.message.slice(0, 80)));
         else if (a.startsWith("key=")) await page.keyboard.press(a.slice(4));
         else if (a === "end") await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
         await page.waitForTimeout(700);
