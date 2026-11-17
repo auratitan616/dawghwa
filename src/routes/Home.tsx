@@ -46,6 +46,15 @@ function createClaims() {
       return () => subs.delete(fn);
     },
     version: () => version,
+    // failed shelves: only the first one shows the error banner, the rest step aside
+    failed: new Set<number>(),
+    fail(order: number, on: boolean) {
+      if (this.failed.has(order) === on) return;
+      if (on) this.failed.add(order);
+      else this.failed.delete(order);
+      version++;
+      subs.forEach((s) => s());
+    },
   };
 }
 type Claims = ReturnType<typeof createClaims>;
@@ -99,6 +108,7 @@ function CatalogueSection({ def, ctx, claims, order }: { def: SectionDef; ctx: R
     return () => io.disconnect();
   }, [visible]);
   const q = useBrowse(visible ? def.query : null);
+  const qc = useQueryClient();
   const claimed = useClaimed(claims, order);
   const items = useMemo(() => {
     const base = (q.data?.items ?? []).filter((t) => !def.filter || def.filter(t));
@@ -109,13 +119,22 @@ function CatalogueSection({ def, ctx, claims, order }: { def: SectionDef; ctx: R
   useEffect(() => {
     if (items.length) claims.set(def.id, order, items.slice(0, 12).map((t) => t.key));
   }, [items, claims, def.id, order]);
-  if (q.isError && !q.data)
+  const failedNow = q.isError && !q.data;
+  useEffect(() => {
+    claims.fail(order, failedNow);
+    return () => claims.fail(order, false);
+  }, [claims, order, failedNow]);
+  if (failedNow) {
+    const first = Math.min(...claims.failed) === order;
+    if (!first) return <div ref={ref} hidden />;
+    const n = claims.failed.size;
     return (
       <section className="section" ref={ref}>
-        <SectionHead id={def.id} title={def.title} />
-        <ErrorState error={q.error} retry={() => void q.refetch()} compact />
+        <ErrorState error={q.error} retry={() => void qc.refetchQueries({ type: "active", predicate: (x) => x.state.status === "error" })} compact />
+        {n > 1 && <p className="muted section-note">{n} shelves couldn't load. Retry reloads all of them.</p>}
       </section>
     );
+  }
   if (!q.data)
     return (
       <section className="section" ref={ref} aria-busy="true">

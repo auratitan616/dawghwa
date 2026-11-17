@@ -15,7 +15,7 @@ import type { LibraryStatus } from "@/lib/store/db";
 import { useRankContext } from "@/lib/feed/context";
 import { explain, positivesOf, scoreTitle } from "@/lib/intel/rank";
 import { cosineSparse, vectorize } from "@/lib/intel/features";
-import { compactNumber, kindLabel, readerPath, statusLabel, type Title } from "@/lib/titles";
+import { compactNumber, kindLabel, plainText, readerPath, statusLabel, type Title } from "@/lib/titles";
 import { useWindowVirtual } from "@/lib/useWindowVirtual";
 import { share, haptic } from "@/lib/platform";
 import type { Chapter } from "@/lib/api/types";
@@ -193,7 +193,7 @@ export default function TitlePage() {
     title
       ? {
           title: `${title.title}${m?.kind ? ` (${kindLabel(m.kind)})` : ""}`,
-          description: m?.description?.slice(0, 160) ?? `Read ${title.title} on Dawghwa.`,
+          description: m?.description ? plainText(m.description).slice(0, 160) : `Read ${title.title} on Dawghwa.`,
           path: loc.pathname,
           image: title.coverLarge ?? title.cover,
           type: "book",
@@ -223,10 +223,30 @@ export default function TitlePage() {
     return sc.score > 0.55 ? explain(sc, ctx, pos)?.text : undefined;
   }, [title, ctx, loc.state]);
 
-  if (t.isError && !title) return <div className="page page-narrow"><ErrorState error={t.error} retry={() => void t.refetch()} center /></div>;
+  const bareBar = (
+    <div className="tp-bar" data-scrolled="">
+      <button className="icon-btn tp-icon" onClick={() => (window.history.state?.idx > 0 ? nav(-1) : nav("/"))} aria-label="Back">
+        <ArrowLeft size={22} />
+      </button>
+      <span className="tp-bar-title">{t.isError ? "Series" : "Loading…"}</span>
+      <Link className="btn btn-sm" to="/">
+        Home
+      </Link>
+    </div>
+  );
+  if (t.isError && !title)
+    return (
+      <div className="tp">
+        {bareBar}
+        <div className="page page-narrow tp-error">
+          <ErrorState error={t.error} retry={() => void t.refetch()} center />
+        </div>
+      </div>
+    );
   if (!title)
     return (
       <div className="tp" aria-busy="true" aria-label="Loading series">
+        {bareBar}
         <div className="tp-layout">
           <div className="tp-hero">
             <div className="tp-cover">
@@ -254,13 +274,16 @@ export default function TitlePage() {
     m?.demographic && m.demographic !== "none" ? m.demographic[0]!.toUpperCase() + m.demographic.slice(1) : undefined,
   ].filter(Boolean) as string[];
   const readCount = progress ? chs.filter((c) => progress.read[c.id]).length : 0;
+  const pubStatus = statusLabel(m?.status);
   const stats = [
+    pubStatus ? { label: "Status", value: pubStatus, icon: null } : null,
     title.rating ? { label: "Rating", value: title.rating.toFixed(2), icon: <Star size={14} aria-hidden="true" /> } : null,
     title.follows ? { label: "Followers", value: compactNumber(title.follows), icon: <Users size={14} aria-hidden="true" /> } : null,
     lastNum ? { label: "Latest", value: String(Math.floor(lastNum)), icon: null } : null,
     readCount ? { label: "Read", value: String(readCount), icon: <Check size={14} aria-hidden="true" /> } : null,
   ].filter(Boolean) as { label: string; value: string; icon: ReactNode }[];
 
+  const synopsis = m?.description ? plainText(m.description) : "";
   const tags = [...(m?.genres ?? []), ...(m?.themes ?? [])];
   const names = (xs?: string[]) => (xs?.length ? xs.slice(0, 2).join(", ") + (xs.length > 2 ? ` +${xs.length - 2}` : "") : "");
   const sameCreators = m?.artists?.join() === m?.authors?.join();
@@ -331,7 +354,7 @@ export default function TitlePage() {
           ))}
         </dl>
       )}
-      {m?.description && <p className="synopsis">{m.description}</p>}
+      {synopsis && <p className="synopsis">{synopsis}</p>}
       {tags.length > 0 && (
         <div className="chips" aria-label="Tags">
           {tags.map((g) => (
@@ -429,12 +452,12 @@ export default function TitlePage() {
                   <Users size={13} aria-hidden="true" /> {compactNumber(title.follows)} followers
                 </span>
               ) : null}
-              {lastNum ? <span>{Math.floor(lastNum)} chapters</span> : null}
+              {lastNum ? <span>{chs.length && chs.length !== Math.floor(lastNum) ? `Latest ch. ${Math.floor(lastNum)}` : `${Math.floor(lastNum)} chapters`}</span> : null}
             </p>
           )}
-          {m?.description && (
-            <button className="tp-synopsis" onClick={() => setAboutOpen(true)} aria-haspopup="dialog" aria-label={`Synopsis: ${m.description.slice(0, 120)}… Open full details`}>
-              <span aria-hidden="true">{m.description}</span>
+          {synopsis && (
+            <button className="tp-synopsis" onClick={() => setAboutOpen(true)} aria-haspopup="dialog" aria-label={`Synopsis: ${synopsis.slice(0, 120)}… Open full details`}>
+              <span aria-hidden="true">{synopsis}</span>
             </button>
           )}
           {tags.length > 0 && (

@@ -1,3 +1,4 @@
+import { toApiError } from "@/lib/api/errors";
 import { useOnline } from "@/lib/platform/useOnline";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
@@ -283,9 +284,16 @@ export default function Search() {
   const textQ = useBrowse(q.length >= 2 ? { query: q, order: "relevance", limit: 40 } : null);
   const textItems = useMemo(() => (textQ.data?.items ?? []).map((t, i) => ({ t, s: textScore(t, q) * 2 - i / 40 })).sort((a, b) => b.s - a.s).map((x) => x.t), [textQ.data, q]);
   const titleHits = useMemo(() => (structured ? textItems.filter((t) => textScore(t, q) >= 0.75).slice(0, 6) : []), [structured, textItems, q]);
+  // an exact title match ("tower of god") is the answer; the parsed theme chip would only confuse
+  const exactTitle = !filterCount && textItems.slice(0, 3).some((t) => textScore(t, q) >= 0.95);
   const hitKeys = new Set(titleHits.map((t) => t.key));
   const items = (structured ? intentQ.data?.items?.filter((t) => !hitKeys.has(t.key)) : textItems)?.filter((t) => !ctx.exclude?.has(t.key)) ?? [];
   const active = structured ? intentQ : textQ;
+  // the catalogue call failed at the network layer: every other source goes through the same API
+  const apiUnreachable = (() => {
+    const e = active.isError ? toApiError(active.error) : undefined;
+    return Boolean(e && (e.kind === "network" || e.kind === "offline" || e.kind === "timeout"));
+  })();
   const local = intent.chips.filter((c) => c.where === "local");
 
   const filters = (
@@ -397,7 +405,7 @@ export default function Search() {
             ))}
           </div>
         )}
-        {hasQuery && intent.chips.length > 0 && (
+        {hasQuery && intent.chips.length > 0 && !exactTitle && (
           <div className="chips understood" aria-label="Understood filters">
             <span className="understood-label">Understood</span>
             {intent.chips.map((c) => (
@@ -426,7 +434,7 @@ export default function Search() {
                 {recent.map((r) => (
                   <li key={r}>
                     <button className="recent-q" onClick={() => setText(r)}>
-                      <Clock size={16} /> {r}
+                      <Clock size={16} /> <span className="recent-text">{r}</span>
                     </button>
                     <button className="icon-btn" aria-label={`Remove "${r}" from recent searches`} onClick={() => removeRecent(r)}>
                       <X size={16} />
@@ -533,7 +541,7 @@ export default function Search() {
           ) : (
             <TitleGrid items={items} context="search" />
           )}
-          {!structured && q.length >= 2 && online && (
+          {!structured && q.length >= 2 && online && !apiUnreachable && (
             <div style={{ marginTop: 28 }}>
               <AllSources q={q} />
             </div>

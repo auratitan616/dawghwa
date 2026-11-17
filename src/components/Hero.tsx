@@ -1,10 +1,10 @@
-import { useCallback, useEffect, useRef, useState, type KeyboardEvent } from "react";
+import { useCallback, useEffect, useRef, useState, type KeyboardEvent, type SyntheticEvent } from "react";
 import { Link } from "react-router-dom";
 import { Check, ChevronLeft, ChevronRight, Plus } from "lucide-react";
 import { toast } from "@/components/Toast";
 import { useChapters } from "@/lib/query";
 import { setStatus, useUser } from "@/lib/store/user";
-import { kindLabel, readerPath, statusLabel, titlePath, type Title } from "@/lib/titles";
+import { kindLabel, plainText, readerPath, statusLabel, titlePath, type Title } from "@/lib/titles";
 
 /**
  * Blueprint home hero: one large artwork card per featured series, title and
@@ -79,18 +79,20 @@ function HeroSlide({ t, i, n, active }: { t: Title; i: number; n: number; active
   const chapters = useChapters(active ? t : undefined);
   const first = chapters.data?.chapters[0];
   const saved = Boolean(lib?.status);
-  const read = p ? { to: readerPath(t, p.chapterId, p.page || undefined), label: `Continue ch. ${p.chapterNumber}` } : first ? { to: readerPath(t, first.id), label: "Start reading" } : { to: titlePath(t), label: "Start reading" };
+  const read = p ? { to: readerPath(t, p.chapterId, p.page || undefined), label: `Continue ch. ${p.chapterNumber}` } : first
+      ? { to: readerPath(t, first.id), label: "Start reading" }
+      : { to: titlePath(t), label: chapters.data ? "View series" : "Start reading" };
   const genres = (t.meta?.genres ?? []).slice(0, 3);
   const facts = [kindLabel(t.meta?.kind), statusLabel(t.meta?.status)].filter(Boolean).join(" · ");
   const art = t.coverLarge ?? t.cover;
   return (
     <article className="hero-slide" data-i={i} aria-roledescription="slide" aria-label={`${i + 1} of ${n}: ${t.title}`} aria-hidden={!active || undefined} inert={!active || undefined}>
       <Link to={titlePath(t)} className="hero-art" tabIndex={-1} aria-hidden="true">
-        {art && <img src={art} alt="" loading={i === 0 ? "eager" : "lazy"} fetchPriority={i === 0 ? "high" : undefined} decoding="async" referrerPolicy="no-referrer" />}
+        {art && <img src={art} alt="" loading={i === 0 ? "eager" : "lazy"} fetchPriority={i === 0 ? "high" : undefined} decoding="async" referrerPolicy="no-referrer" onError={hideBroken} />}
       </Link>
       {art && (
         <div className="hero-cover" aria-hidden="true">
-          <img src={art} alt="" loading={i === 0 ? "eager" : "lazy"} decoding="async" referrerPolicy="no-referrer" />
+          <img src={art} alt="" loading={i === 0 ? "eager" : "lazy"} decoding="async" referrerPolicy="no-referrer" onError={hideBroken} />
         </div>
       )}
       <div className="hero-body">
@@ -99,7 +101,7 @@ function HeroSlide({ t, i, n, active }: { t: Title; i: number; n: number; active
           <Link to={titlePath(t)}>{t.title}</Link>
         </h2>
         {genres.length > 0 && <p className="hero-genres">{genres.join(", ")}</p>}
-        {t.meta?.description && <p className="hero-desc">{t.meta.description}</p>}
+        {t.meta?.description && <p className="hero-desc">{plainText(t.meta.description)}</p>}
         <div className="hero-actions">
           <Link className="btn btn-light btn-lg" to={read.to}>
             {read.label}
@@ -108,8 +110,9 @@ function HeroSlide({ t, i, n, active }: { t: Title; i: number; n: number; active
             className="btn btn-glass btn-lg"
             aria-pressed={saved}
             onClick={() => {
+              const was = lib?.status;
               void setStatus(t, saved ? undefined : "plan");
-              toast(saved ? "Removed from your library" : "Saved to your library");
+              toast(saved ? "Removed from your library" : "Saved to your library", { label: "Undo", run: () => void setStatus(t, was) });
             }}
           >
             {saved ? <Check size={18} /> : <Plus size={18} />} {saved ? "Saved" : "Save"}
@@ -118,4 +121,9 @@ function HeroSlide({ t, i, n, active }: { t: Title; i: number; n: number; active
       </div>
     </article>
   );
+}
+
+/** A failed key-art image disappears instead of showing the browser's broken-image glyph; the brand gradient shows through. */
+function hideBroken(e: SyntheticEvent<HTMLImageElement>) {
+  e.currentTarget.dataset.failed = "";
 }

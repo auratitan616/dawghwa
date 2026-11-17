@@ -84,3 +84,18 @@ test("offline: navigation keeps working and failures say offline, not 'updated'"
   await expect(page.getByText("Dawghwa was updated")).toHaveCount(0);
   await context.setOffline(false);
 });
+
+test("title page never widens the phone viewport and keeps the read CTA on screen", async ({ page, isMobile }) => {
+  test.skip(!isMobile, "phone layout check");
+  test.skip(!(await apiUp(page)), "API not running");
+  await skipOnboarding(page);
+  for (const width of [360, 390, 412]) {
+    await page.setViewportSize({ width, height: 844 });
+    await page.goto("/title/mangadex/77bee52c-d2d6-44ad-a33a-1734c1fe696a");
+    await expect(page.getByRole("heading", { level: 1 })).toBeVisible({ timeout: 20_000 });
+    await expect(page.locator(".tp-cta")).toBeInViewport({ timeout: 20_000 });
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
+    await page.getByRole("tab", { name: /About/ }).click();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
+  }
+});

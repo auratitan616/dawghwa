@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type ComponentType } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import {
-  Bot, Brain, Briefcase, ChevronLeft, CloudRain, Crown, DoorOpen, Drama, Fingerprint, Flame, Ghost, GraduationCap, Heart, Hourglass, Landmark, RefreshCcw, Rocket, Shield, Siren, Skull, Smile, Sparkles, Sun, Swords, Trophy,
+  Ban, Bot, Brain, Briefcase, Droplet, Flower2, HeartHandshake, Users, ChevronLeft, CloudRain, Crown, DoorOpen, Drama, Fingerprint, Flame, Ghost, GraduationCap, Heart, Hourglass, Landmark, RefreshCcw, Rocket, Shield, Siren, Skull, Smile, Sparkles, Sun, Swords, Trophy,
 } from "lucide-react";
 import { Mascot } from "@/components/Mascot";
 import { useVocabulary } from "@/lib/query";
@@ -17,6 +17,7 @@ const FORMATS: [string, string, string][] = [
 const STARTER = ["Action", "Fantasy", "Romance", "Comedy", "Drama", "Isekai", "Thriller", "Horror", "Slice of Life", "Psychological", "Mystery", "Sci-Fi", "Sports", "Historical", "Martial Arts", "Reincarnation", "Time Travel", "Villainess", "Monsters", "Survival", "Office Workers", "School Life", "Tragedy", "Mecha"];
 const ICONS: Record<string, ComponentType<{ size?: number; "aria-hidden"?: boolean }>> = {
   Action: Swords, Fantasy: Sparkles, Romance: Heart, Comedy: Smile, Drama, Isekai: DoorOpen, Thriller: Siren, Horror: Ghost, "Slice of Life": Sun, Psychological: Brain, Mystery: Fingerprint, "Sci-Fi": Rocket, Sports: Trophy, Historical: Landmark, "Martial Arts": Shield, Reincarnation: RefreshCcw, "Time Travel": Hourglass, Villainess: Crown, Monsters: Skull, Survival: Flame, "Office Workers": Briefcase, "School Life": GraduationCap, Tragedy: CloudRain, Mecha: Bot,
+  Gore: Droplet, "Sexual Violence": Ban, "Boys' Love": HeartHandshake, "Girls' Love": Flower2, Harem: Users,
 };
 const AVOID = ["Gore", "Sexual Violence", "Boys' Love", "Girls' Love", "Harem", "Tragedy"];
 
