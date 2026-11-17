@@ -16,7 +16,7 @@
     "e2e": "playwright test",
     "e2e:install": "playwright install chromium",
     "eval:intel": "vitest run src/lib/intel",
-    "android:sync": "npm run build && cap sync android",
+    "android:sync": "node scripts/check-native-env.mjs && npm run build && cap sync android",
     "android:build": "npm run android:sync && cd android && ./gradlew assembleDebug",
     "icons": "node scripts/render-icons.mjs && node scripts/render-android-assets.mjs"
   },
