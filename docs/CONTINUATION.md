@@ -1,0 +1,54 @@
+# Continuation report
+
+Living status document. Updated with each logical commit so work can resume from any point.
+
+## Branches
+
+| Repo | Branch | State |
+| --- | --- | --- |
+| Titan717/dawghwa | `feature/app-foundation` | Pushed. Draft PR #1. Not merged. |
+| Titan717/dawghwa.api | `feature/catalog-summary-detail` | Pushed. PR #2 (optional synopsis, tag names, demographic on MangaDex catalogue items). Not merged or deployed. |
+| Titan717/dawghwa.api | `feature/catalog-metadata-browse` | Draft PR #1, superseded by main's `/api/catalog` (1.1.0) and conflicting. Recommended to close. The app no longer uses `/api/browse`. |
+
+## Done (verified locally)
+
+- Vite + React + TypeScript PWA scaffold, Capacitor config (`app.dawghwa`), icons, manifest, robots, sitemap script.
+- Typed API client: timeouts, retries, cancellation, in-flight dedup, normalised errors, NDJSON streaming.
+- Local-first IndexedDB store with isolated profiles, export/import, in-memory fallback.
+- On-device recommender (Web Worker), explainable reasons, evaluation harness and tests.
+- Deterministic natural-language search parser (server vs on-device filters shown separately).
+- Screens: Home, Discover, Search, Title, Reader, Library, History, Profile, Welcome, About, 404.
+- Visual QA at 390px and 1440px, light and dark, against the local API; layout fixes committed.
+- Store tests (reader progress rules, profile isolation, deletion, export/import), checked to fail when the read-at-end rule is broken.
+- Playwright e2e: 8 scenarios x 2 projects (Pixel 7, desktop). 16/16 pass locally with the API running; in CI the live-data ones skip.
+- Android: platform added, brand icons and splash, dawghwa:// deep links, network/vibrate permissions, native API guard. A debug APK (app.dawghwa, minSdk 24, targetSdk 36) was built locally with JDK 21 + SDK 36. It was a UI-only build without VITE_API_BASE_URL, and it was not run on a device or emulator.
+- CI (`.github/workflows/ci.yml`) passes on GitHub: typecheck, lint, unit, build, e2e, and a debug APK artifact.
+- Precache trimmed to Latin fonts (70 entries, 804 KiB).
+- The app uses the deployed API's catalogue (`/api/catalog`, `/api/catalog/filters`, `/api/titles/{ref}`) through `src/lib/api/catalog.ts`. e2e 16/16 passed against both https://dawghwaapi.vercel.app and a local build of API PR #2.
+- Repository variable `DAWGHWA_API_URL=https://dawghwaapi.vercel.app` is set. CI run 44002866188 passed: live e2e 16/16 (none skipped), and the debug APK was built with that URL (bundle check step), artifact `dawghwa-debug-apk`, 5.3 MB. Not yet run on a device.
+- Last verified: `tsc -b`, `eslint --max-warnings 0`, `vite build`, `vitest run` (45 tests) all pass.
+
+## Known environment notes
+
+- In this sandbox the headless browser gets 502/403 for `uploads.mangadex.org`; `scripts/qa/screenshots.mjs` relays images through Node for QA only. Real browsers are unaffected by this relay.
+- Capacitor CLI needs Node 22+. The Java SDK manager needed the system CA bundle imported into a truststore to download packages here.
+
+## Remaining
+
+1. Test the CI APK (artifact `dawghwa-debug-apk`) on a device: back button, immersive reader, deep links, keyboard.
+2. Merge and deploy API PR #2 to restore mood and story-theme rows and filters, which need tags and synopses in list items. Until then those Home rows hide themselves and search reports the filters as not applied.
+3. Hidden gems needs follower counts, which the catalogue does not return. It could come back if the API adds MangaDex statistics.
+4. Verified https App Links need a domain plus `/.well-known/assetlinks.json`.
+5. Release signing (keystore kept outside the repo) and versioning.
+6. Initial JS is about 145 KB gzip, mostly react-dom; acceptable, revisit if needed.
+7. Bump GitHub Actions to Node 24-based major versions (warnings only today).
+8. Mascot artwork: no Dawghwa mascot files were supplied. Panda.fun's panda is a different brand and is not used. Drop artwork into `src/assets/mascot/`.
+
+## How to run
+
+```bash
+# API (in dawghwa.api)
+npm run build && RATE_LIMIT_PER_MINUTE=2000 npx next start -p 3100
+# App
+npm install && npm run build && npm run preview   # proxies /api to localhost:3100
+```
