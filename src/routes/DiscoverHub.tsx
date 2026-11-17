@@ -8,7 +8,7 @@ import { toast } from "@/components/Toast";
 import { useRankContext } from "@/lib/feed/context";
 import { surprise } from "@/lib/intel/rank";
 import { useBrowse, useVocabulary } from "@/lib/query";
-import { titlePath, type Title } from "@/lib/titles";
+import { titlePath, type Title, isMature } from "@/lib/titles";
 
 /**
  * Discover hub. Every tile links to a real filter: genre / format / status /
@@ -62,7 +62,7 @@ function Art({ items }: { items: Title[] }) {
   return (
     <span className="tile-art" aria-hidden="true">
       {items.slice(0, 3).map((t) => (
-        <Cover key={t.key} src={t.cover} title={t.title} sizes="80px" />
+        <Cover key={t.key} mature={isMature(t)} src={t.cover} title={t.title} sizes="80px" />
       ))}
     </span>
   );

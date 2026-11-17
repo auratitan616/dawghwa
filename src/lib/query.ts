@@ -21,7 +21,8 @@ export const queryClient = new QueryClient({
       gcTime: 24 * 3600_000,
       refetchOnWindowFocus: false,
       networkMode: "offlineFirst",
-      retry: (count, e) => count < 1 && (!isApiError(e) || e.retryable),
+      // The client already retries transient HTTP failures; only retry here for network-level ones.
+      retry: (count, e) => count < 1 && (!isApiError(e) || (e.retryable && e.kind !== "http")),
     },
   },
 });

@@ -1,11 +1,27 @@
 import { useEffect, useState, useSyncExternalStore } from "react";
-import { NavLink, Outlet, ScrollRestoration, useLocation, useNavigate } from "react-router-dom";
-import { BookOpen, Compass, History, Home, Search, User, WifiOff, CloudOff, RefreshCw } from "lucide-react";
+import {
+  NavLink,
+  Outlet,
+  ScrollRestoration,
+  useLocation,
+  useNavigate,
+} from "react-router-dom";
+import {
+  BookOpen,
+  Compass,
+  History,
+  Home,
+  Search,
+  User,
+  WifiOff,
+  CloudOff,
+  RefreshCw,
+} from "lucide-react";
 import { Brand } from "@/components/Brand";
 import { Avatar } from "@/components/Avatar";
 import { Toasts } from "@/components/Toast";
 import { apiHealth } from "@/lib/api/client";
-import { network } from "@/lib/platform";
+import { useOnline } from "@/lib/platform/useOnline";
 import { useUser } from "@/lib/store/user";
 import { updateReady, applyUpdate } from "./pwa";
 
@@ -17,12 +33,12 @@ const NAV = [
   { to: "/profile", label: "Profile", icon: User },
 ];
 
-function useOnline() {
-  return useSyncExternalStore(network.subscribe, () => network.get().online, () => true);
-}
-
 function useApiHealth() {
-  return useSyncExternalStore(apiHealth.subscribe, apiHealth.get, apiHealth.get);
+  return useSyncExternalStore(
+    apiHealth.subscribe,
+    apiHealth.get,
+    apiHealth.get,
+  );
 }
 
 export function Shell() {
@@ -30,7 +46,11 @@ export function Shell() {
   const nav = useNavigate();
   const online = useOnline();
   const health = useApiHealth();
-  const update = useSyncExternalStore(updateReady.subscribe, updateReady.get, updateReady.get);
+  const update = useSyncExternalStore(
+    updateReady.subscribe,
+    updateReady.get,
+    updateReady.get,
+  );
   const profile = useUser((s) => s.profile);
   const [scrolled, setScrolled] = useState(false);
   useEffect(() => {
@@ -41,8 +61,12 @@ export function Shell() {
   useEffect(() => {
     const key = (e: KeyboardEvent) => {
       const t = e.target as HTMLElement;
-      const typing = t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName);
-      if ((e.key === "k" && (e.metaKey || e.ctrlKey)) || (e.key === "/" && !typing)) {
+      const typing =
+        t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName);
+      if (
+        (e.key === "k" && (e.metaKey || e.ctrlKey)) ||
+        (e.key === "/" && !typing)
+      ) {
         e.preventDefault();
         nav("/search");
       }
@@ -86,11 +110,18 @@ export function Shell() {
         </NavLink>
         <div className="sidebar-foot">
           {profile && (
-            <NavLink to="/profile" className="side-link" style={{ minHeight: 52 }}>
+            <NavLink
+              to="/profile"
+              className="side-link"
+              style={{ minHeight: 52 }}
+            >
               <Avatar name={profile.name} color={profile.color} size={30} />
               <span>
                 {profile.name}
-                <span className="dim" style={{ display: "block", fontSize: 11 }}>
+                <span
+                  className="dim"
+                  style={{ display: "block", fontSize: 11 }}
+                >
                   Stored on this device
                 </span>
               </span>
@@ -104,25 +135,35 @@ export function Shell() {
             <Brand />
           </NavLink>
           {!inSearch && (
-            <button className="search-trigger" onClick={() => nav("/search")} aria-label="Search">
+            <button
+              className="search-trigger"
+              onClick={() => nav("/search")}
+              aria-label="Search"
+            >
               <Search size={18} />
               <span>Search titles, or try "completed fantasy manhwa"</span>
               <kbd>/</kbd>
             </button>
           )}
           {profile && (
-            <NavLink to="/profile" className="topbar-avatar" aria-label={`Profile: ${profile.name}`}>
+            <NavLink
+              to="/profile"
+              className="topbar-avatar"
+              aria-label={`Profile: ${profile.name}`}
+            >
               <Avatar name={profile.name} color={profile.color} size={32} />
             </NavLink>
           )}
         </header>
         {!online ? (
           <div className="banner banner-warn" role="status">
-            <WifiOff size={16} /> You're offline. Library, history and saved data still work; new content will load when you reconnect.
+            <WifiOff size={16} /> You're offline. Library, history and saved
+            data still work; new content will load when you reconnect.
           </div>
         ) : health === "unreachable" ? (
           <div className="banner banner-warn" role="status">
-            <CloudOff size={16} /> The Dawghwa service isn't responding right now. Showing what's saved on this device.
+            <CloudOff size={16} /> The Dawghwa service isn't responding right
+            now. Showing what's saved on this device.
           </div>
         ) : null}
         {update && (
@@ -136,13 +177,22 @@ export function Shell() {
         <main id="main" tabIndex={-1}>
           <Outlet />
         </main>
-        <footer className="site-foot">
-          <span>Dawghwa does not host content. Titles, covers and chapters come from their providers through the Dawghwa API.</span>
-          <a href="https://github.com/Titan717/dawghwa" rel="noopener" target="_blank">
-            Source
-          </a>
-          <NavLink to="/about">About and credits</NavLink>
-        </footer>
+        {(loc.pathname === "/" || loc.pathname === "/about") && (
+          <footer className="site-foot">
+            <span>
+              Dawghwa does not host content. Titles, covers and chapters come
+              from their providers through the Dawghwa API.
+            </span>
+            <a
+              href="https://github.com/Titan717/dawghwa"
+              rel="noopener"
+              target="_blank"
+            >
+              Source
+            </a>
+            <NavLink to="/about">About and credits</NavLink>
+          </footer>
+        )}
       </div>
       <nav className="bottomnav" aria-label="Primary">
         {NAV.map(({ to, label, icon: Icon, end }) => (

@@ -329,3 +329,7 @@
 [data-reduce-motion] .rd-progress > span {
   transition: none;
 }
+
+/* paged pages sit in the optical centre when they fit, and start at the top when taller */
+.rd-spread.rd-fit-width { align-items: safe center; }
+.rd-dir { display: inline-flex; align-items: center; gap: 3px; padding: 2px 7px; border-radius: 999px; background: var(--surface-2); color: var(--ink-2); font-size: 11px; font-weight: 800; letter-spacing: 0.06em; white-space: nowrap; }

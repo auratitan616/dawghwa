@@ -1,3 +1,4 @@
+import { useOnline } from "@/lib/platform/useOnline";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
@@ -17,7 +18,7 @@ import { useHead } from "@/lib/seo";
 import { getCachedTitles } from "@/lib/store/db";
 import { useUser } from "@/lib/store/user";
 import { useRankContext } from "@/lib/feed/context";
-import { fromResult, titlePath, type Title } from "@/lib/titles";
+import { fromResult, titlePath, type Title, isMature } from "@/lib/titles";
 
 const KINDS: [MangaKind, string][] = [
   ["manhwa", "Manhwa"],
@@ -150,7 +151,7 @@ function AllSources({ q }: { q: string }) {
             </div>
             {r.items.slice(0, 5).map((t) => (
               <Link key={t.key} className="list-item" to={titlePath(t)}>
-                <Cover src={t.cover} title={t.title} sizes="48px" className="cover-sm" />
+                <Cover mature={isMature(t)} src={t.cover} title={t.title} sizes="48px" className="cover-sm" />
                 <span style={{ minWidth: 0 }}>
                   <span className="title">{t.title}</span>
                   <span className="card-meta">{t.latestChapter ? `Ch. ${t.latestChapter}` : ""}</span>
@@ -195,6 +196,7 @@ function CategoryTile({ label, to, q }: { label: string; to: string; q: BrowseQu
 export default function Search() {
   const [params, setParams] = useSearchParams();
   const profileId = useUser((s) => s.profile?.id);
+  const online = useOnline();
   const userTitles = useUser((s) => s.titles);
   const [text, setText] = useState(params.get("q") ?? "");
   const q = useDebounced(text.trim(), 280);
@@ -497,7 +499,7 @@ export default function Search() {
           )}
           <div className="result-head">
             <p className="result-count" aria-live="polite">
-              {active.data ? (items.length ? `${items.length}${structured && intentQ.data?.hasMore ? "+" : ""} ${items.length === 1 ? "title" : "titles"}` : "No titles") : "Searching..."}
+              {active.data ? (items.length ? `${items.length}${structured && intentQ.data?.hasMore ? "+" : ""} ${items.length === 1 ? "title" : "titles"}` : "No titles") : active.isError ? (online ? "Couldn't search" : "Offline") : online ? "Searching..." : "Offline"}
             </p>
             <select className="select select-sm" aria-label="Sort results" value={fOrder ?? ""} onChange={(e) => setParam("order", e.target.value || undefined)}>
               {SORTS.map(([o, l]) => (
@@ -527,7 +529,7 @@ export default function Search() {
           ) : (
             <TitleGrid items={items} context="search" />
           )}
-          {!structured && q.length >= 2 && (
+          {!structured && q.length >= 2 && online && (
             <div style={{ marginTop: 28 }}>
               <AllSources q={q} />
             </div>

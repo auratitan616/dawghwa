@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import { Link, useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom";
-import { ArrowDownUp, ArrowLeft, BookOpen, Check, ExternalLink, Heart, Info, MoreHorizontal, Plus, Search, Share2, Sparkles, Star, ThumbsDown, ThumbsUp, Users } from "lucide-react";
+import { ArrowDownUp, ArrowLeft, BookOpen, Check, ExternalLink, Heart, Info, MoreHorizontal, Plus, Search, Share2, Sparkles, Star, ThumbsDown, ThumbsUp, Users, X } from "lucide-react";
 import { Cover } from "@/components/Cover";
 import { ChapterNo, Sticker } from "@/components/Editorial";
 import { TitleCard } from "@/components/TitleCard";
@@ -270,7 +270,7 @@ export default function TitlePage() {
     if (status) return setStatusOpen(true);
     void setStatus(title, "plan");
     void haptic("light");
-    toast("Saved to your library", { label: "Change", run: () => setStatusOpen(true) });
+    toast(`Saved to ${STATUS_LABELS.plan}`, { label: "Undo", run: () => void setStatus(title, undefined) });
   };
   const art = title.coverLarge ?? title.cover;
 
@@ -480,8 +480,10 @@ export default function TitlePage() {
               className="btn btn-sm"
               aria-pressed={Boolean(lib?.favorite)}
               onClick={() => {
+                const on = !lib?.favorite;
                 void toggleFavorite(title);
                 void haptic("light");
+                toast(on ? "Added to favourites" : "Removed from favourites", { label: "Undo", run: () => void toggleFavorite(title) });
               }}
             >
               <Heart size={15} fill={lib?.favorite ? "currentColor" : "none"} /> {lib?.favorite ? "Favourited" : "Favourite"}
@@ -518,12 +520,14 @@ export default function TitlePage() {
               role="radio"
               aria-checked={status === s}
               onClick={() => {
+                const was = status;
                 void setStatus(title, s);
                 void haptic("light");
                 setStatusOpen(false);
+                if (was !== s) toast(`Moved to ${STATUS_LABELS[s]}`, { label: "Undo", run: () => void setStatus(title, was) });
               }}
             >
-              {status === s ? <Check size={18} /> : <span style={{ width: 18 }} />} {STATUS_LABELS[s]}
+              <span className="radio-dot" aria-hidden="true" /> {STATUS_LABELS[s]}
             </button>
           ))}
           {status && (
@@ -535,7 +539,7 @@ export default function TitlePage() {
                 toast("Removed from library");
               }}
             >
-              <span style={{ width: 18 }} /> Remove from library
+              <X size={18} /> Remove from library
             </button>
           )}
         </div>

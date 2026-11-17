@@ -8,7 +8,7 @@ import { Sheet } from "@/components/Layer";
 import { toast } from "@/components/Toast";
 import { useHead } from "@/lib/seo";
 import { clearHistory, removeFromHistory, useUser } from "@/lib/store/user";
-import { readerPath, titlePath } from "@/lib/titles";
+import { readerPath, titlePath, isMature } from "@/lib/titles";
 
 const dayLabel = (ts: number) => {
   const d = new Date(ts);
@@ -64,7 +64,7 @@ export default function HistoryPage() {
               return (
                 <div key={p.titleKey} className="list-item">
                   <Link to={titlePath(t)} aria-label={t.title}>
-                    <Cover src={t.cover} title={t.title} sizes="56px" className="cover-sm" />
+                    <Cover mature={isMature(t)} src={t.cover} title={t.title} sizes="56px" className="cover-sm" />
                   </Link>
                   <Link to={p.pageCount ? readerPath(t, p.chapterId, p.page || undefined) : titlePath(t)} style={{ minWidth: 0, flex: 1 }}>
                     <span className="title">{t.title}</span>

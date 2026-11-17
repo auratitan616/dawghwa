@@ -3539,3 +3539,26 @@ fieldset legend { padding: 0; margin-bottom: var(--space-2); }
 .onboard-finding .state-art { animation: finding-bob 1.1s var(--ease-out) infinite alternate; }
 @keyframes finding-bob { to { transform: translateY(-8px); } }
 @media (prefers-reduced-motion: reduce) { .onboard-finding .state-art { animation: none; } }
+
+/* Mature covers: blurred until the reader opts in (Profile > Content) */
+.cover[data-mature] img { filter: blur(14px) saturate(0.7); transform: scale(1.12); }
+.cover-mature { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); padding: 3px 9px; border-radius: 999px; background: rgb(0 0 0 / 0.62); color: #fff; font-size: 11px; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; pointer-events: none; }
+
+/* footer: only on Home and About; links are full tap targets */
+.site-foot { align-items: center; }
+.site-foot a { display: inline-flex; align-items: center; min-height: 44px; padding: 0 4px; }
+@media (pointer: fine) { .site-foot a { min-height: 28px; } }
+
+/* sheets: consistent row rhythm, a real radio indicator for single-choice lists */
+.menu-item { min-height: 56px; }
+.menu-item:has(small) { min-height: 64px; padding-block: 8px; }
+.radio-dot { flex: none; width: 18px; height: 18px; border-radius: 50%; border: 2px solid var(--line-strong); display: grid; place-items: center; }
+.menu-item[aria-checked="true"] .radio-dot { border-color: var(--accent); }
+.menu-item[aria-checked="true"] .radio-dot::after { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--accent); }
+.menu-item[aria-checked="true"] { font-weight: 700; }
+
+/* quiet, centred empty states (blueprint: centred grey copy) */
+.state { align-items: center; text-align: center; margin-inline: auto; }
+.state h2 { font-size: var(--text-lg); font-weight: 800; }
+.state p { font-size: var(--text-sm); margin: 0; }
+.state .state-art { width: 104px; height: 104px; }

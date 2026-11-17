@@ -105,6 +105,7 @@ export default function Reader() {
   const [failures, setFailures] = useState(0);
   const [reachedEnd, setReachedEnd] = useState(false);
   const [endView, setEndView] = useState(false);
+  const [countdown, setCountdown] = useState<number | null>(null);
   const scroller = useRef<HTMLDivElement>(null);
   const restored = useRef(false);
 
@@ -113,6 +114,7 @@ export default function Reader() {
   // reset per chapter
   useEffect(() => {
     setPage(startPage);
+    setCountdown(null);
     setReachedEnd(false);
     setEndView(false);
     setFailures(0);
@@ -344,15 +346,17 @@ export default function Reader() {
   const onFail = useCallback(() => setFailures((n) => n + 1), []);
 
   // auto-advance: countdown on the end panel
-  const [countdown, setCountdown] = useState<number | null>(null);
   useEffect(() => {
     if (!reachedEnd || !settings.autoNext || !next || mode !== "vertical") return setCountdown(null);
     setCountdown(5);
     const iv = setInterval(() => setCountdown((c) => (c === null ? null : c - 1)), 1000);
     return () => clearInterval(iv);
   }, [reachedEnd, settings.autoNext, next, mode]);
+  // Fire once per countdown: clear it before navigating, so the next chapter's "next" can't re-trigger it.
   useEffect(() => {
-    if (countdown === 0) goChapter(next);
+    if (countdown !== 0) return;
+    setCountdown(null);
+    goChapter(next);
   }, [countdown, goChapter, next]);
 
   // preload upcoming pages in paged mode
@@ -473,7 +477,7 @@ export default function Reader() {
           <ArrowLeft size={20} />
         </Link>
         <div className="rd-titles">
-          <span className="rd-series">{title?.title ?? "Loading"}</span>
+          <span className="rd-series">{title?.title ?? (t.isError ? "Reader" : "Loading…")}</span>
           <span className="rd-chapter">
             {chapter ? `Chapter ${chapter.number}${chapter.title ? `: ${chapter.title}` : ""}` : ""}
             {chapter?.group ? ` · ${chapter.group.name}` : ""} · via {sourceName}
@@ -525,6 +529,11 @@ export default function Reader() {
           />
         ) : (
           <span style={{ flex: 1 }} />
+        )}
+        {rtl && count > 1 && (
+          <span className="rd-dir" title="Pages run right to left">
+            <ArrowLeft size={13} aria-hidden="true" /> RTL
+          </span>
         )}
         <span className="rd-count">{pageLabel}</span>
         <button className="icon-btn" disabled={!(rtl ? prev : next)} onClick={() => goChapter(rtl ? prev : next)} aria-label={rtl ? "Previous chapter" : "Next chapter"}>

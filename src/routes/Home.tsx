@@ -19,7 +19,7 @@ import { useBrowse } from "@/lib/query";
 import { useHead } from "@/lib/seo";
 import { continueList, useUser } from "@/lib/store/user";
 import { MascotSays } from "@/components/Mascot";
-import { readerPath, titlePath, type Title } from "@/lib/titles";
+import { readerPath, titlePath, type Title, isMature } from "@/lib/titles";
 
 const MIN_ROW = 6;
 
@@ -135,7 +135,8 @@ function Featured({ ctx }: { ctx: RankContext }) {
   // most-followed series; prefer ones with a synopsis to show
   const q = useBrowse({ order: "popular", limit: 30 });
   const items = useMemo(() => {
-    const withCover = (q.data?.items ?? []).filter((t) => t.cover);
+    // The hero is full-bleed key art, so it never features titles the provider marks suggestive or adult.
+    const withCover = (q.data?.items ?? []).filter((t) => t.cover && !isMature(t));
     const described = withCover.filter((t) => t.meta?.description);
     return rerankRow(described.length >= 3 ? described : withCover, ctx).slice(0, 6);
   }, [q.data, ctx]);
@@ -164,7 +165,7 @@ function ContinueReading() {
         const pct = Math.round(p.fraction * 100);
         return (
           <Link key={p.titleKey} className="continue-card" to={readerPath(t, p.chapterId, p.page || undefined)} aria-label={`Resume ${t.title}, chapter ${p.chapterNumber}, ${pct}% read`}>
-            <Cover src={t.cover} title={t.title} sizes="64px" />
+            <Cover mature={isMature(t)} src={t.cover} title={t.title} sizes="64px" />
             <span className="continue-body">
               <span className="title">{t.title}</span>
               <span className="continue-meta">

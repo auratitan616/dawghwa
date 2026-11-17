@@ -2,7 +2,7 @@ import { memo, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { Star } from "lucide-react";
 import { prefetchTitle } from "@/lib/query";
-import { compactNumber, kindLabel, statusLabel, titlePath, type Title } from "@/lib/titles";
+import { compactNumber, kindLabel, statusLabel, titlePath, type Title, isMature } from "@/lib/titles";
 import { Cover } from "./Cover";
 
 /** "CH.042" style chapter numeral: zero-padded integer part, decimals kept. */
@@ -44,7 +44,7 @@ const facts = (t: Title) => [kindLabel(t.meta?.kind), statusLabel(t.meta?.status
 export const WideCard = memo(function WideCard({ title: t, reason }: { title: Title; reason?: string }) {
   return (
     <Link to={titlePath(t)} className="wide-card" onMouseEnter={() => prefetchTitle(t)} onFocus={() => prefetchTitle(t)}>
-      <Cover src={t.cover} large={t.coverLarge} title={t.title} sizes="88px" />
+      <Cover mature={isMature(t)} src={t.cover} large={t.coverLarge} title={t.title} sizes="88px" />
       <span className="wide-body">
         <span className="card-title">{t.title}</span>
         <span className="wide-facts">{facts(t)}</span>
@@ -59,7 +59,7 @@ export function LeadCard({ title: t, label }: { title: Title; label?: string }) 
   const genres = (t.meta?.genres ?? []).slice(0, 3);
   return (
     <Link to={titlePath(t)} className="lead-card panel" onMouseEnter={() => prefetchTitle(t)} onFocus={() => prefetchTitle(t)}>
-      <Cover src={t.cover} large={t.coverLarge} title={t.title} sizes="(min-width: 768px) 170px, 120px" />
+      <Cover mature={isMature(t)} src={t.cover} large={t.coverLarge} title={t.title} sizes="(min-width: 768px) 170px, 120px" />
       <span className="lead-body">
         {label && <span className="lead-label">{label}</span>}
         <span className="lead-title">{t.title}</span>

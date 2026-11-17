@@ -1,16 +1,18 @@
 import { useState } from "react";
+import { useSettings } from "@/lib/settings";
 
 /**
  * Cover image in a fixed 5:7 frame (no layout shift), lazy loaded, with a
  * typographic fallback when the provider has no cover or it fails to load.
  * `large` (when the API provides it) is offered via srcset for big slots.
  */
-export function Cover({ src, large, title, eager, sizes = "160px", className = "" }: { src?: string; large?: string; title: string; eager?: boolean; sizes?: string; className?: string }) {
+export function Cover({ src, large, title, eager, sizes = "160px", className = "", mature }: { src?: string; large?: string; title: string; eager?: boolean; sizes?: string; className?: string; mature?: boolean }) {
+  const blur = useSettings().matureCovers === "blur" && mature;
   const [failed, setFailed] = useState<string | undefined>();
   const [loaded, setLoaded] = useState<string | undefined>();
   const broken = !src || failed === src;
   return (
-    <div className={`cover ${className}`}>
+    <div className={`cover ${className}`} data-mature={blur || undefined}>
       {broken ? (
         <div className="cover-fallback" aria-hidden="true">
           <span className="cover-fallback-text">{title}</span>
@@ -32,6 +34,7 @@ export function Cover({ src, large, title, eager, sizes = "160px", className = "
           referrerPolicy="no-referrer"
         />
       )}
+      {blur && !broken && <span className="cover-mature">Mature</span>}
     </div>
   );
 }

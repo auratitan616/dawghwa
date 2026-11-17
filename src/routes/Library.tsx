@@ -8,7 +8,7 @@ import { Sticker } from "@/components/Editorial";
 import { useHead } from "@/lib/seo";
 import { allCollections, useUser } from "@/lib/store/user";
 import type { LibraryRecord, LibraryStatus, ProgressRecord } from "@/lib/store/db";
-import { kindLabel, readerPath, titlePath, type Title } from "@/lib/titles";
+import { kindLabel, readerPath, titlePath, type Title, isMature } from "@/lib/titles";
 import { STATUS_LABELS } from "./TitlePage";
 
 type Tab = LibraryStatus | "recent" | "all" | "favorites" | `c:${string}`;
@@ -35,7 +35,7 @@ function LibraryRow({ t, r, p }: { t: Title; r?: LibraryRecord; p?: ProgressReco
   return (
     <li className="lib-row">
       <Link to={titlePath(t)} className="lib-row-main">
-        <Cover src={t.cover} title={t.title} sizes="56px" className="cover-sm" />
+        <Cover mature={isMature(t)} src={t.cover} title={t.title} sizes="56px" className="cover-sm" />
         <span className="lib-row-body">
           <span className="lib-row-title">{t.title}</span>
           <span className="lib-row-meta">

@@ -83,7 +83,11 @@ export class ApiError extends Error {
       case "NOT_FOUND":
         return "Not found on the source.";
       default:
-        return this.message || "Something went wrong.";
+        // Never surface raw status text ("Service Unavailable") to readers.
+        if (this.status >= 500) return "The Dawghwa service isn't responding right now. Try again in a moment.";
+        if (this.status === 429) return "Too many requests. Give it a moment.";
+        if (this.status >= 400) return "That request didn't work. Try again, or go back.";
+        return "Something went wrong.";
     }
   }
 }

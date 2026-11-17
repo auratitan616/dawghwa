@@ -95,3 +95,12 @@ export function compactNumber(n?: number): string | undefined {
   if (n === undefined || !Number.isFinite(n)) return undefined;
   return new Intl.NumberFormat("en", { notation: "compact", maximumFractionDigits: 1 }).format(n);
 }
+
+const MATURE_TAGS = new Set(["ecchi", "hentai", "smut", "adult", "mature", "sexual violence"]);
+/** Marked suggestive or adult by the provider (content rating or genre). Never guessed from the cover. */
+export function isMature(t?: Title): boolean {
+  const m = t?.meta;
+  if (!m) return false;
+  if (m.contentRating && ["suggestive", "erotica", "pornographic"].includes(m.contentRating)) return true;
+  return [...(m.genres ?? []), ...(m.tags ?? [])].some((g) => MATURE_TAGS.has(g.toLowerCase()));
+}
