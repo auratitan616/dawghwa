@@ -1,9 +1,11 @@
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { Link, Navigate, useNavigate } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
-import { BookOpen, Check, CheckCircle2, Dices, Play, Plus, RefreshCw, Sparkles, Timer } from "lucide-react";
+import { CheckCircle2, Dices, Play, RefreshCw, Sparkles, Timer } from "lucide-react";
 import { Row, SectionHead } from "@/components/Row";
-import { ChapterNo, Kicker, LeadCard, WideCard } from "@/components/Editorial";
+import { ChapterNo, LeadCard, WideCard } from "@/components/Editorial";
+import { Hero } from "@/components/Hero";
+import { CategoryShelf } from "@/components/CategoryShelf";
 import { TitleCard } from "@/components/TitleCard";
 import { Cover } from "@/components/Cover";
 import { ErrorState, RowSkeleton } from "@/components/States";
@@ -13,11 +15,11 @@ import { noteShown, useRankContext } from "@/lib/feed/context";
 import { rank, rerankRow, surprise, type RankContext, type Scored } from "@/lib/intel/rank";
 import { evidence } from "@/lib/intel/learner";
 import { cosineSparse, vectorize } from "@/lib/intel/features";
-import { useBrowse, useChapters } from "@/lib/query";
+import { useBrowse } from "@/lib/query";
 import { useHead } from "@/lib/seo";
-import { continueList, setStatus, useUser } from "@/lib/store/user";
+import { continueList, useUser } from "@/lib/store/user";
 import { MascotSays } from "@/components/Mascot";
-import { kindLabel, readerPath, statusLabel, titlePath, type Title } from "@/lib/titles";
+import { readerPath, titlePath, type Title, isMature } from "@/lib/titles";
 
 const MIN_ROW = 6;
 
@@ -129,116 +131,24 @@ function CatalogueSection({ def, ctx, claims, order }: { def: SectionDef; ctx: R
   );
 }
 
-function greeting(d = new Date()) {
-  const h = d.getHours();
-  return h < 5 ? "Up late" : h < 12 ? "Good morning" : h < 18 ? "Good afternoon" : "Good evening";
-}
-
-function MagazineHead({ name, resuming }: { name?: string; resuming: boolean }) {
-  const today = new Date().toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short" });
-  return (
-    <header className="mag-head">
-      <div className="mag-dateline">
-        <span>Your reading universe</span>
-        <span className="tabular">{today}</span>
-      </div>
-      <p className="mag-greet">
-        {greeting()}
-        {name ? `, ${name}` : ""}.
-      </p>
-      <h1 className="mag-title">{resuming ? "One more chapter?" : "Enter your next story."}</h1>
-    </header>
-  );
-}
-
 function Featured({ ctx }: { ctx: RankContext }) {
   // most-followed series; prefer ones with a synopsis to show
   const q = useBrowse({ order: "popular", limit: 30 });
-  const [i, setI] = useState(0);
-  const lib = useUser((s) => s.library);
-  const progress = useUser((s) => s.progress);
   const items = useMemo(() => {
-    const withCover = (q.data?.items ?? []).filter((t) => t.cover);
+    // The hero is full-bleed key art, so it never features titles the provider marks suggestive or adult.
+    const withCover = (q.data?.items ?? []).filter((t) => t.cover && !isMature(t));
     const described = withCover.filter((t) => t.meta?.description);
-    return rerankRow(described.length >= 3 ? described : withCover, ctx).slice(0, 5);
+    return rerankRow(described.length >= 3 ? described : withCover, ctx).slice(0, 6);
   }, [q.data, ctx]);
-  const t = items.length ? items[Math.min(i, items.length - 1)] : undefined;
-  const chapters = useChapters(t);
   if (q.isError && !q.data) return <ErrorState error={q.error} retry={() => void q.refetch()} />;
   if (q.data && !items.length) return null;
-  if (!t)
+  if (!items.length)
     return (
-      <div className="feature panel" aria-busy="true" aria-label="Loading featured title">
-        <div className="feature-cover">
-          <div className="cover skeleton" />
-        </div>
-        <div className="feature-body">
-          <div className="skeleton skeleton-line" style={{ width: "30%" }} />
-          <div className="skeleton" style={{ height: 30, width: "80%", marginTop: 12 }} />
-          <div className="skeleton skeleton-line" style={{ width: "95%" }} />
-          <div className="skeleton skeleton-line" style={{ width: "70%" }} />
-        </div>
+      <div className="hero hero-loading" aria-busy="true" aria-label="Loading featured series">
+        <div className="hero-slide skeleton" />
       </div>
     );
-  const inLib = Boolean(lib.get(t.key)?.status);
-  const p = progress.get(t.key);
-  const first = chapters.data?.chapters[0];
-  const genres = (t.meta?.genres ?? []).slice(0, 3);
-  const read = p ? { to: readerPath(t, p.chapterId, p.page || undefined), label: `Continue ch. ${p.chapterNumber}` } : first ? { to: readerPath(t, first.id), label: "Read now" } : { to: titlePath(t), label: "View series" };
-  return (
-    <section className="feature-wrap" aria-roledescription="carousel" aria-label="Featured series">
-      <div className="feature panel" key={t.key}>
-        <div className="feature-art" aria-hidden="true">
-          <img src={t.cover} alt="" loading="eager" decoding="async" referrerPolicy="no-referrer" />
-        </div>
-        <Link to={titlePath(t)} className="feature-cover" aria-label={t.title} tabIndex={-1}>
-          <Cover src={t.cover} large={t.coverLarge} title={t.title} eager sizes="(min-width: 768px) 190px, 118px" />
-        </Link>
-        <div className="feature-body">
-          <div className="feature-kicker">
-            <Kicker n={String(i + 1).padStart(2, "0")}>Featured</Kicker>
-            <span className="feature-facts">{[kindLabel(t.meta?.kind), statusLabel(t.meta?.status), t.meta?.year].filter(Boolean).join(" · ")}</span>
-          </div>
-          <h2 className="feature-title" data-long={t.title.length > 40 ? "" : undefined}>
-            <Link to={titlePath(t)}>{t.title}</Link>
-          </h2>
-          {t.meta?.description && <p className="feature-desc">{t.meta.description}</p>}
-          {genres.length > 0 && (
-            <div className="feature-tags">
-              {genres.map((g) => (
-                <span className="tag" key={g}>
-                  {g}
-                </span>
-              ))}
-              {t.latestChapter ? <ChapterNo n={t.latestChapter} prefix="Latest" /> : null}
-            </div>
-          )}
-        </div>
-        <div className="feature-actions">
-          <Link className="btn btn-primary btn-lg" to={read.to} aria-busy={chapters.isLoading && !p}>
-            <BookOpen size={18} /> {read.label}
-          </Link>
-          <button
-            className="btn btn-lg"
-            aria-pressed={inLib}
-            onClick={() => {
-              void setStatus(t, inLib ? undefined : "plan");
-              toast(inLib ? "Removed from library" : "Added to Plan to read");
-            }}
-          >
-            {inLib ? <Check size={18} /> : <Plus size={18} />} {inLib ? "In library" : "Plan to read"}
-          </button>
-        </div>
-      </div>
-      <div className="feature-pager" role="group" aria-label="Choose featured title">
-        {items.map((x, n) => (
-          <button key={x.key} aria-label={`Show ${x.title}`} aria-current={n === i} onClick={() => setI(n)}>
-            <span className="tabular">{String(n + 1).padStart(2, "0")}</span>
-          </button>
-        ))}
-      </div>
-    </section>
-  );
+  return <Hero items={items} />;
 }
 
 function ContinueReading() {
@@ -255,7 +165,7 @@ function ContinueReading() {
         const pct = Math.round(p.fraction * 100);
         return (
           <Link key={p.titleKey} className="continue-card" to={readerPath(t, p.chapterId, p.page || undefined)} aria-label={`Resume ${t.title}, chapter ${p.chapterNumber}, ${pct}% read`}>
-            <Cover src={t.cover} title={t.title} sizes="64px" />
+            <Cover mature={isMature(t)} src={t.cover} title={t.title} sizes="64px" />
             <span className="continue-body">
               <span className="title">{t.title}</span>
               <span className="continue-meta">
@@ -377,7 +287,6 @@ function SomethingDifferent({ ctx, pool }: { ctx: RankContext; pool: Title[] }) 
 
 export default function Home() {
   const profile = useUser((s) => s.profile);
-  const resuming = useUser((s) => continueList(s).length > 0);
   const ctx = useRankContext();
   const pickCtx = useRankContext({ excludeLibrary: true });
   const pool = usePools(pickCtx);
@@ -408,7 +317,7 @@ export default function Home() {
   };
   return (
     <div className="page home">
-      <MagazineHead name={profile?.name} resuming={resuming} />
+      <h1 className="sr-only">Dawghwa home</h1>
       <Featured ctx={ctx} />
       <nav className="mood-strip" aria-label="Quick picks">
         <button className="mood mood-lime" onClick={doSurprise}>
@@ -436,6 +345,7 @@ export default function Home() {
       </nav>
       <div className="feed">
         <ContinueReading />
+        <CategoryShelf ctx={ctx} preferred={ctx.prefs?.genres} />
         <PickedForYou ctx={pickCtx} pool={pool.items} seed={seed} />
         <BecauseYouRead ctx={pickCtx} />
         {sections.slice(0, shownCount).map((d, i) => (

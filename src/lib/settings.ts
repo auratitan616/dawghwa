@@ -22,10 +22,12 @@ export interface Settings {
   tapZones: boolean;
   /** Show optional milestone achievements on the profile (never shown while reading). */
   achievements: boolean;
+  /** Blur covers of titles marked suggestive or adult until the reader opts in. */
+  matureCovers: "blur" | "show";
 }
 
 export const DEFAULT_SETTINGS: Settings = {
-  theme: "system",
+  theme: "dark",
   reduceMotion: "system",
   readerMode: "auto",
   direction: "rtl",
@@ -35,6 +37,7 @@ export const DEFAULT_SETTINGS: Settings = {
   pageGap: false,
   tapZones: true,
   achievements: true,
+  matureCovers: "blur",
 };
 
 let settings: Settings = { ...DEFAULT_SETTINGS, ...readLocal() };

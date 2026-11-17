@@ -1,12 +1,13 @@
+import { useOnline } from "@/lib/platform/useOnline";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { Clock, Globe, Search as SearchIcon, SlidersHorizontal, TrendingUp, X } from "lucide-react";
+import { Clock, Globe, Search as SearchIcon, SlidersHorizontal, X } from "lucide-react";
 import { Sheet } from "@/components/Layer";
-import { Kicker } from "@/components/Editorial";
-import type { BrowseOrder, MangaKind } from "@/lib/api/types";
+import type { BrowseOrder, BrowseQuery, MangaKind } from "@/lib/api/types";
+import { TitleCard } from "@/components/TitleCard";
 import { TitleGrid } from "@/components/Grid";
-import { EmptyState, ErrorState, GridSkeleton } from "@/components/States";
+import { EmptyState, ErrorState, GridSkeleton, RowSkeleton } from "@/components/States";
 import { Cover } from "@/components/Cover";
 import { parseIntent, type Intent } from "@/lib/search/intent";
 import { runIntent } from "@/lib/search/run";
@@ -17,7 +18,7 @@ import { useHead } from "@/lib/seo";
 import { getCachedTitles } from "@/lib/store/db";
 import { useUser } from "@/lib/store/user";
 import { useRankContext } from "@/lib/feed/context";
-import { fromResult, titlePath, type Title } from "@/lib/titles";
+import { fromResult, titlePath, type Title, isMature } from "@/lib/titles";
 
 const KINDS: [MangaKind, string][] = [
   ["manhwa", "Manhwa"],
@@ -150,7 +151,7 @@ function AllSources({ q }: { q: string }) {
             </div>
             {r.items.slice(0, 5).map((t) => (
               <Link key={t.key} className="list-item" to={titlePath(t)}>
-                <Cover src={t.cover} title={t.title} sizes="48px" className="cover-sm" />
+                <Cover mature={isMature(t)} src={t.cover} title={t.title} sizes="48px" className="cover-sm" />
                 <span style={{ minWidth: 0 }}>
                   <span className="title">{t.title}</span>
                   <span className="card-meta">{t.latestChapter ? `Ch. ${t.latestChapter}` : ""}</span>
@@ -165,9 +166,37 @@ function AllSources({ q }: { q: string }) {
   );
 }
 
+const CATEGORIES: { label: string; to: string; q: BrowseQuery }[] = [
+  { label: "Top rated", to: "/discover?order=rating", q: { order: "rating" } },
+  { label: "New releases", to: "/discover?order=new", q: { order: "new" } },
+  { label: "Recently updated", to: "/discover?order=latest", q: { order: "latest" } },
+  { label: "Completed", to: "/discover?status=completed", q: { status: ["completed"], order: "popular" } },
+  { label: "Manhwa", to: "/discover?kind=manhwa", q: { kinds: ["manhwa"], order: "popular" } },
+  { label: "Manga", to: "/discover?kind=manga", q: { kinds: ["manga"], order: "popular" } },
+  { label: "Manhua", to: "/discover?kind=manhua", q: { kinds: ["manhua"], order: "popular" } },
+  { label: "Romance", to: "/discover?tag=Romance", q: { includedTags: ["Romance"], order: "popular" } },
+];
+
+/** Category tile: the label plus the cover of that category's current top series (a real browse result). */
+function CategoryTile({ label, to, q }: { label: string; to: string; q: BrowseQuery }) {
+  const r = useBrowse({ ...q, limit: 2 });
+  const t = r.data?.items[0];
+  return (
+    <li>
+      <Link className="cat-tile" to={to}>
+        <span className="cat-tile-label">{label}</span>
+        <span className="cat-tile-art" aria-hidden="true">
+          {t?.cover ? <img src={t.cover} alt="" loading="lazy" decoding="async" referrerPolicy="no-referrer" /> : <span className="skeleton" />}
+        </span>
+      </Link>
+    </li>
+  );
+}
+
 export default function Search() {
   const [params, setParams] = useSearchParams();
   const profileId = useUser((s) => s.profile?.id);
+  const online = useOnline();
   const userTitles = useUser((s) => s.titles);
   const [text, setText] = useState(params.get("q") ?? "");
   const q = useDebounced(text.trim(), 280);
@@ -249,9 +278,13 @@ export default function Search() {
     queryFn: ({ signal }) => runIntent(intent, { signal, want: 36, seed: seedQ.data ?? undefined }),
     staleTime: 10 * 60_000,
   });
-  const textQ = useBrowse(q && !structured ? { query: q, order: "relevance", limit: 40 } : null);
+  // The literal title search always runs, so a title that happens to contain intent words
+  // ("Tower of God", "Romance Dawn") is never replaced by a genre browse.
+  const textQ = useBrowse(q.length >= 2 ? { query: q, order: "relevance", limit: 40 } : null);
   const textItems = useMemo(() => (textQ.data?.items ?? []).map((t, i) => ({ t, s: textScore(t, q) * 2 - i / 40 })).sort((a, b) => b.s - a.s).map((x) => x.t), [textQ.data, q]);
-  const items = (structured ? intentQ.data?.items : textItems)?.filter((t) => !ctx.exclude?.has(t.key)) ?? [];
+  const titleHits = useMemo(() => (structured ? textItems.filter((t) => textScore(t, q) >= 0.75).slice(0, 6) : []), [structured, textItems, q]);
+  const hitKeys = new Set(titleHits.map((t) => t.key));
+  const items = (structured ? intentQ.data?.items?.filter((t) => !hitKeys.has(t.key)) : textItems)?.filter((t) => !ctx.exclude?.has(t.key)) ?? [];
   const active = structured ? intentQ : textQ;
   const local = intent.chips.filter((c) => c.where === "local");
 
@@ -307,7 +340,7 @@ export default function Search() {
 
   return (
     <div className="page search-page">
-      <h1 className="sr-only">Search</h1>
+      <h1 className="search-title">Search</h1>
       <div className="search-box">
         <form
           className="search-input"
@@ -403,12 +436,45 @@ export default function Search() {
               </ul>
             </section>
           )}
+          {!trending.isError && (!trending.data || trending.data.items.length > 0) && (
+            <section className="section" aria-labelledby="trend-h">
+              <div className="section-head">
+                <div className="section-titles">
+                  <h2 id="trend-h">What everyone's reading</h2>
+                  <p>Most-followed series first published this year</p>
+                </div>
+                <Link className="see-all" to={`/discover?year=${new Date().getFullYear()}`}>
+                  See all
+                </Link>
+              </div>
+              {trending.data ? (
+                <div className="row-track">
+                  {trending.data.items.slice(0, 10).map((t, n) => (
+                    <TitleCard key={t.key} title={t} context="trending" rank={n + 1} />
+                  ))}
+                </div>
+              ) : (
+                <RowSkeleton count={6} />
+              )}
+            </section>
+          )}
+          <section className="section" aria-labelledby="cat-h">
+            <div className="section-head">
+              <div className="section-titles">
+                <h2 id="cat-h">Browse categories</h2>
+              </div>
+            </div>
+            <ul className="cat-tiles">
+              {CATEGORIES.map((c) => (
+                <CategoryTile key={c.label} {...c} />
+              ))}
+            </ul>
+          </section>
           <section className="section">
             <div className="section-head">
               <div className="section-titles">
-                <Kicker>Try describing it</Kicker>
-                <h2>Search understands what you mean</h2>
-                <p>Formats, genres, themes, status, length and "similar to". The parsing runs on your device.</p>
+                                <h2>Try describing it</h2>
+                <p>Search understands formats, genres, themes, length and "similar to", on your device.</p>
               </div>
             </div>
             <div className="example-list">
@@ -419,38 +485,25 @@ export default function Search() {
               ))}
             </div>
           </section>
-          {(trending.data?.items.length ?? 0) > 0 && (
-            <section className="section">
-              <div className="section-head">
-                <div className="section-titles">
-                  <h2>
-                    <TrendingUp size={20} style={{ verticalAlign: -2, marginRight: 6 }} />
-                    Rising this year
-                  </h2>
-                  <p>Most-followed series first published this year</p>
-                </div>
-              </div>
-              <ol className="trend-list">
-                {trending.data!.items.slice(0, 8).map((t, n) => (
-                  <li key={t.key}>
-                    <Link to={titlePath(t)}>
-                      <span className="trend-no">{n + 1}</span>
-                      <Cover src={t.cover} title={t.title} sizes="40px" className="cover-sm" />
-                      <span className="trend-title">{t.title}</span>
-                    </Link>
-                  </li>
-                ))}
-              </ol>
-            </section>
-          )}
         </div>
       )}
 
       {hasQuery && (
         <div style={{ marginTop: 8 }}>
+          {titleHits.length > 0 && (
+            <section className="section title-hits" aria-labelledby="hits-h">
+              <div className="section-head">
+                <div className="section-titles">
+                  <h2 id="hits-h">Titles matching "{q}"</h2>
+                </div>
+              </div>
+              <TitleGrid items={titleHits} context="search-title" />
+              <h2 className="hits-then">Matching your description</h2>
+            </section>
+          )}
           <div className="result-head">
             <p className="result-count" aria-live="polite">
-              {active.data ? (items.length ? `${items.length}${structured && intentQ.data?.hasMore ? "+" : ""} ${items.length === 1 ? "title" : "titles"}` : "No titles") : "Searching..."}
+              {active.data ? (items.length ? `${items.length}${structured && intentQ.data?.hasMore ? "+" : ""} ${items.length === 1 ? "title" : "titles"}` : "No titles") : active.isError ? (online ? "Couldn't search" : "Offline") : online ? "Searching..." : "Offline"}
             </p>
             <select className="select select-sm" aria-label="Sort results" value={fOrder ?? ""} onChange={(e) => setParam("order", e.target.value || undefined)}>
               {SORTS.map(([o, l]) => (
@@ -480,7 +533,7 @@ export default function Search() {
           ) : (
             <TitleGrid items={items} context="search" />
           )}
-          {!structured && q.length >= 2 && (
+          {!structured && q.length >= 2 && online && (
             <div style={{ marginTop: 28 }}>
               <AllSources q={q} />
             </div>

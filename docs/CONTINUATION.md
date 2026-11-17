@@ -6,9 +6,11 @@ Living status document. Updated with each logical commit so work can resume from
 
 | Repo | Branch | State |
 | --- | --- | --- |
-| Titan717/dawghwa | `feature/app-foundation` | Pushed. Draft PR #1. Not merged. |
-| Titan717/dawghwa.api | `feature/catalog-summary-detail` | Pushed. PR #2 (optional synopsis, tag names, demographic on MangaDex catalogue items). Not merged or deployed. |
-| Titan717/dawghwa.api | `feature/catalog-metadata-browse` | Draft PR #1, superseded by main's `/api/catalog` (1.1.0) and conflicting. Recommended to close. The app no longer uses `/api/browse`. |
+| titan717/dawghwa | `main` | PR #1 and PR #2 merged. Production: https://dawghwa.vercel.app (Vercel git integration). |
+| titan717/dawghwa | `feature/blueprint-experience` | PR #3 to main: blueprint screens, critic fixes, `vercel.json`. |
+| titan717/dawghwa.api | `main` | PR #1 and PR #2 merged. Production: https://dawghwaapi.vercel.app |
+
+Mission docs: `DAWGHWA_AUDIT.md`, `DAWGHWA_DESIGN_SYSTEM.md`, `DAWGHWA_IMPLEMENTATION_PLAN.md`, `DAWGHWA_QA_SCORECARD.md`, `DAWGHWA_PROGRESS.md`, `DAWGHWA_RESEARCH.md`.
 
 ## Done (verified locally)
 

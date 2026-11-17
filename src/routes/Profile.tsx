@@ -244,7 +244,7 @@ export default function Profile() {
         <h2 id="appearance-h">Appearance</h2>
         <div className="settings-row">
           <span className="label">Theme</span>
-          <Segmented label="Theme" value={settings.theme} options={[["system", "System"], ["dark", "Dark"], ["light", "Light"]]} onChange={(v) => updateSettings({ theme: v })} />
+          <Segmented label="Theme" value={settings.theme} options={[["dark", "Dark"], ["light", "Light"], ["system", "System"]]} onChange={(v) => updateSettings({ theme: v })} />
         </div>
         <div className="settings-row">
           <span className="label">Reduce motion</span>
@@ -256,6 +256,13 @@ export default function Profile() {
             <span className="hint">Optional achievements on this page. They never appear while you read.</span>
           </span>
           <input type="checkbox" checked={settings.achievements} onChange={(e) => updateSettings({ achievements: e.target.checked })} />
+        </label>
+        <label className="switch settings-row">
+          <span>
+            <span className="label">Show mature covers</span>
+            <span className="hint">Covers of series the source marks suggestive or adult are blurred until you turn this on.</span>
+          </span>
+          <input type="checkbox" checked={settings.matureCovers === "show"} onChange={(e) => updateSettings({ matureCovers: e.target.checked ? "show" : "blur" })} />
         </label>
       </section>
 

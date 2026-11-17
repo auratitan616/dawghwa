@@ -2,7 +2,7 @@ import { memo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { MoreHorizontal, Star } from "lucide-react";
 import { prefetchTitle } from "@/lib/query";
-import { compactNumber, kindLabel, titlePath, type Title } from "@/lib/titles";
+import { compactNumber, kindLabel, titlePath, type Title, isMature } from "@/lib/titles";
 import { Cover } from "./Cover";
 import { TitleActionsSheet } from "./TitleActions";
 
@@ -59,7 +59,7 @@ export const TitleCard = memo(function TitleCard({ title: t, reason, rank, conte
           <span className="ranked-num tabular" aria-hidden="true">
             {rank}
           </span>
-          <Cover src={t.cover} large={t.coverLarge} title={t.title} eager={eager} sizes="74px" />
+          <Cover mature={isMature(t)} src={t.cover} large={t.coverLarge} title={t.title} eager={eager} sizes="74px" />
           <span style={{ minWidth: 0 }}>
             <span className="card-title">{t.title}</span>
             <span className="card-meta" style={{ marginTop: 4 }}>
@@ -84,7 +84,7 @@ export const TitleCard = memo(function TitleCard({ title: t, reason, rank, conte
       </button>
       <Link to={href} className="card-link" onMouseEnter={() => prefetchTitle(t)} onFocus={() => prefetchTitle(t)} {...press}>
         {t.meta?.status === "completed" && <span className="card-badge sticker sticker-lavender">Done</span>}
-        <Cover src={t.cover} large={t.coverLarge} title={t.title} eager={eager} />
+        <Cover mature={isMature(t)} src={t.cover} large={t.coverLarge} title={t.title} eager={eager} />
         {progress && (
           <div className="progress-bar" aria-label={progress.label}>
             <i style={{ width: `${Math.round(progress.fraction * 100)}%` }} />

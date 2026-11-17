@@ -1,9 +1,8 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import { Link, useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom";
-import { ArrowDownUp, BookOpen, Check, ExternalLink, Heart, Library, MoreHorizontal, Share2, Sparkles, Star, ThumbsDown, ThumbsUp, Users } from "lucide-react";
+import { ArrowDownUp, ArrowLeft, BookOpen, Check, ExternalLink, Heart, Info, MoreHorizontal, Plus, Search, Share2, Sparkles, Star, ThumbsDown, ThumbsUp, Users, X } from "lucide-react";
 import { Cover } from "@/components/Cover";
-import { Row } from "@/components/Row";
-import { ChapterNo, Kicker, Sticker } from "@/components/Editorial";
+import { ChapterNo, Sticker } from "@/components/Editorial";
 import { TitleCard } from "@/components/TitleCard";
 import { Sheet } from "@/components/Layer";
 import { EmptyState, ErrorState } from "@/components/States";
@@ -41,7 +40,6 @@ function ChapterList({ title, chapters, readable, sourceName }: { title: Title; 
     <section aria-labelledby="chapters-h">
       <div className="section-head">
         <div className="section-titles">
-          <Kicker>Chapters</Kicker>
           <h2 id="chapters-h">{chapters.length.toLocaleString()} {chapters.length === 1 ? "chapter" : "chapters"}</h2>
           <p>
             {readCount ? `${readCount} read · ` : ""}
@@ -112,15 +110,38 @@ function MoreLikeThis({ title }: { title: Title }) {
       .slice(0, 16)
       .map((x) => x.t);
   }, [q.data, title, ctx.exclude]);
-  if (items.length < 4) return null;
+  if (q.isError && !q.data) return <ErrorState error={q.error} retry={() => void q.refetch()} compact />;
+  if (g.length && !q.data)
+    return (
+      <div className="grid" aria-busy="true" aria-label="Loading similar series">
+        {Array.from({ length: 6 }, (_, i) => (
+          <div key={i} className="cover skeleton" />
+        ))}
+      </div>
+    );
+  if (!items.length) return <EmptyState title="Nothing close enough yet">We couldn't find series that share enough of this one's genres and format.</EmptyState>;
   return (
-    <Row id="similar" title="More like this" subtitle="Shares its genres, themes and format with this series" more={similarPath(title)}>
-      {items.map((t) => (
-        <TitleCard key={t.key} title={t} context="similar" />
-      ))}
-    </Row>
+    <>
+      <div className="grid">
+        {items.map((t) => (
+          <TitleCard key={t.key} title={t} context="similar" />
+        ))}
+      </div>
+      <p className="tp-more">
+        <Link className="btn" to={similarPath(title)}>
+          <Sparkles size={16} /> Explore more like this
+        </Link>
+      </p>
+    </>
   );
 }
+
+type Tab = "chapters" | "about" | "similar";
+const TABS: { id: Tab; label: string }[] = [
+  { id: "chapters", label: "Chapters" },
+  { id: "about", label: "About" },
+  { id: "similar", label: "Readers also like" },
+];
 
 export default function TitlePage() {
   const { source = "", id = "" } = useParams();
@@ -136,7 +157,24 @@ export default function TitlePage() {
   const ctx = useRankContext();
   const [statusOpen, setStatusOpen] = useState(false);
   const [menu, setMenu] = useState(false);
-  const [clamp, setClamp] = useState(true);
+  const [aboutOpen, setAboutOpen] = useState(false);
+  const [barSolid, setBarSolid] = useState(false);
+  useEffect(() => {
+    const on = () => setBarSolid(window.scrollY > 240);
+    on();
+    window.addEventListener("scroll", on, { passive: true });
+    return () => window.removeEventListener("scroll", on);
+  }, []);
+  const [tab, setTab] = useState<Tab>("chapters");
+  const onTabKey = (e: KeyboardEvent) => {
+    const i = TABS.findIndex((x) => x.id === tab);
+    const d = e.key === "ArrowRight" ? 1 : e.key === "ArrowLeft" ? -1 : 0;
+    if (!d) return;
+    e.preventDefault();
+    const next = TABS[(i + d + TABS.length) % TABS.length]!.id;
+    setTab(next);
+    document.getElementById(`tp-tab-${next}`)?.focus();
+  };
   const opened = useRef<string | null>(null);
 
   const src = sources.data?.find((s) => s.id === source);
@@ -188,12 +226,14 @@ export default function TitlePage() {
   if (t.isError && !title) return <div className="page page-narrow"><ErrorState error={t.error} retry={() => void t.refetch()} center /></div>;
   if (!title)
     return (
-      <div className="page title-page" aria-busy="true">
-        <div className="title-hero">
-          <div className="cover skeleton" />
-          <div>
-            <div className="skeleton" style={{ height: 28, width: "70%" }} />
-            <div className="skeleton skeleton-line" style={{ width: "40%" }} />
+      <div className="tp" aria-busy="true" aria-label="Loading series">
+        <div className="tp-layout">
+          <div className="tp-hero">
+            <div className="tp-cover">
+              <div className="cover skeleton" />
+            </div>
+            <div className="skeleton" style={{ height: 30, width: "70%", margin: "0 auto" }} />
+            <div className="skeleton skeleton-line" style={{ width: "40%", margin: "12px auto" }} />
           </div>
         </div>
       </div>
@@ -221,71 +261,196 @@ export default function TitlePage() {
     readCount ? { label: "Read", value: String(readCount), icon: <Check size={14} aria-hidden="true" /> } : null,
   ].filter(Boolean) as { label: string; value: string; icon: ReactNode }[];
 
-  return (
-    <div className="page">
-      <div className="title-page">
-        <aside className="title-aside">
-          <div className="title-hero">
-            <Cover src={title.cover} large={title.coverLarge} title={title.title} eager sizes="(min-width: 1024px) 300px, 132px" />
-            <div className="title-hero-text">
-              {facts.length > 0 && (
-                <p className="title-kicker">
-                  {facts.map((f, i) => (
-                    <span key={f} className={i === 0 ? "title-kind" : undefined}>
-                      {f}
-                    </span>
-                  ))}
-                </p>
-              )}
-              <h1>{title.title}</h1>
-              {m?.altTitles?.length ? <p className="alt-titles">{m.altTitles.slice(0, 3).join(" · ")}</p> : null}
+  const tags = [...(m?.genres ?? []), ...(m?.themes ?? [])];
+  const names = (xs?: string[]) => (xs?.length ? xs.slice(0, 2).join(", ") + (xs.length > 2 ? ` +${xs.length - 2}` : "") : "");
+  const sameCreators = m?.artists?.join() === m?.authors?.join();
+  const credit = [m?.authors?.length ? `Story ${names(m.authors)}` : null, m?.artists?.length && !sameCreators ? `Art ${names(m.artists)}` : null].filter(Boolean).join(" · ");
+  const back = () => (window.history.state?.idx > 0 ? nav(-1) : nav("/"));
+  const saveToggle = () => {
+    if (status) return setStatusOpen(true);
+    void setStatus(title, "plan");
+    void haptic("light");
+    toast(`Saved to ${STATUS_LABELS.plan}`, { label: "Undo", run: () => void setStatus(title, undefined) });
+  };
+  const art = title.coverLarge ?? title.cover;
+
+  const cta =
+    readable && target ? (
+      <Link className="btn btn-primary btn-lg tp-cta" to={readerPath(title, target.id, current === target && progress?.page ? progress.page : undefined)}>
+        <BookOpen size={18} /> {progress ? startLabel : `Read chapter ${target.number}`}
+      </Link>
+    ) : readable && chapters.isLoading ? (
+      <button className="btn btn-primary btn-lg tp-cta" disabled>
+        <BookOpen size={18} /> Loading chapters
+      </button>
+    ) : readable ? (
+      <Link className="btn btn-primary btn-lg tp-cta" to={`/search?q=${encodeURIComponent(title.title)}`}>
+        <Search size={18} /> Find it on other sources
+      </Link>
+    ) : (
+      <a className="btn btn-primary btn-lg tp-cta" href={target?.url ?? title.url} target="_blank" rel="noopener noreferrer">
+        <ExternalLink size={18} /> Open on {sourceName}
+      </a>
+    );
+
+  const chapterPanel = chapters.isError ? (
+    <ErrorState error={chapters.error} retry={() => void chapters.refetch()} compact />
+  ) : chapters.isLoading ? (
+    <div aria-busy="true">
+      {Array.from({ length: 8 }, (_, i) => (
+        <div key={i} className="skeleton skeleton-line" style={{ height: 40, margin: "8px 0" }} />
+      ))}
+    </div>
+  ) : !chs.length ? (
+    <EmptyState
+      title={`No chapters on ${sourceName}`}
+      action={
+        <button className="btn" onClick={() => nav(`/search?q=${encodeURIComponent(title.title)}`)}>
+          Look for it on other sources
+        </button>
+      }
+    >
+      {sourceName} lists this title but hosts no readable English chapters, which usually means it is officially licensed. Dawghwa only shows chapters a source actually provides.
+    </EmptyState>
+  ) : (
+    <ChapterList title={title} chapters={chs} readable={readable} sourceName={sourceName} />
+  );
+
+  const about = (
+    <div className="tp-about">
+      {stats.length > 0 && (
+        <dl className="stat-strip" style={{ ["--n" as string]: stats.length }}>
+          {stats.map((x) => (
+            <div key={x.label}>
+              <dt>{x.label}</dt>
+              <dd>
+                {x.icon}
+                {x.value}
+              </dd>
             </div>
+          ))}
+        </dl>
+      )}
+      {m?.description && <p className="synopsis">{m.description}</p>}
+      {tags.length > 0 && (
+        <div className="chips" aria-label="Tags">
+          {tags.map((g) => (
+            <Link key={g} className="tag" to={`/discover?tag=${encodeURIComponent(g)}`}>
+              {g}
+            </Link>
+          ))}
+        </div>
+      )}
+      <dl className="credits">
+        {facts.length > 0 && (
+          <div>
+            <dt>Format</dt>
+            <dd>{facts.join(" · ")}</dd>
           </div>
-          {stats.length > 0 && (
-            <dl className="stat-strip" style={{ ["--n" as string]: stats.length }}>
-              {stats.map((x) => (
-                <div key={x.label}>
-                  <dt>{x.label}</dt>
-                  <dd>
-                    {x.icon}
-                    {x.value}
-                  </dd>
-                </div>
+        )}
+        {m?.authors?.length ? (
+          <div>
+            <dt>Story</dt>
+            <dd>{m.authors.join(", ")}</dd>
+          </div>
+        ) : null}
+        {m?.artists?.length ? (
+          <div>
+            <dt>Art</dt>
+            <dd>{m.artists.join(", ")}</dd>
+          </div>
+        ) : null}
+        {m?.altTitles?.length ? (
+          <div>
+            <dt>Also known as</dt>
+            <dd>{m.altTitles.slice(0, 4).join(" · ")}</dd>
+          </div>
+        ) : null}
+        <div>
+          <dt>Source</dt>
+          <dd>
+            <a href={title.url} target="_blank" rel="noopener noreferrer">
+              {sourceName} <ExternalLink size={12} aria-hidden="true" />
+            </a>
+          </dd>
+        </div>
+      </dl>
+    </div>
+  );
+
+  return (
+    <div className="tp">
+      <div className="tp-backdrop" aria-hidden="true">
+        {art && <img src={art} alt="" decoding="async" referrerPolicy="no-referrer" />}
+      </div>
+      <div className="tp-bar" data-scrolled={barSolid || undefined}>
+        <button className="icon-btn tp-icon" onClick={back} aria-label="Back">
+          <ArrowLeft size={22} />
+        </button>
+        <span className="tp-bar-title" aria-hidden="true">
+          {title.title}
+        </span>
+        <button className="btn btn-sm tp-save" data-saved={status ? "" : undefined} onClick={saveToggle} aria-haspopup={status ? "dialog" : undefined} aria-label={status ? `In library: ${STATUS_LABELS[status]}. Change` : "Save to library"}>
+          {status ? <Check size={16} /> : <Plus size={16} />} {status ? STATUS_LABELS[status] : "Save"}
+        </button>
+        <button className="icon-btn tp-icon" onClick={() => setAboutOpen(true)} aria-label="About this series" aria-haspopup="dialog">
+          <Info size={21} />
+        </button>
+        <button className="icon-btn tp-icon" onClick={() => setMenu(true)} aria-label="More actions" aria-haspopup="dialog">
+          <MoreHorizontal size={22} />
+        </button>
+      </div>
+
+      <div className="tp-layout">
+        <section className="tp-hero" aria-labelledby="tp-h">
+          <div className="tp-cover">
+            <Cover src={title.cover} large={title.coverLarge} title={title.title} eager sizes="(min-width: 900px) 280px, 200px" />
+          </div>
+          {facts.length > 0 && (
+            <p className="title-kicker">
+              {facts.map((f, i) => (
+                <span key={f} className={i === 0 ? "title-kind" : undefined}>
+                  {f}
+                </span>
               ))}
-            </dl>
+            </p>
           )}
-          <div className="title-actions">
-            {readable && target ? (
-              <Link className="btn btn-primary btn-lg" to={readerPath(title, target.id, current === target && progress?.page ? progress.page : undefined)}>
-                <BookOpen size={18} /> {startLabel}
-              </Link>
-            ) : readable ? (
-              <button className="btn btn-primary btn-lg" disabled>
-                <BookOpen size={18} /> {chapters.isLoading ? "Loading chapters" : "No readable chapters"}
-              </button>
-            ) : (
-              <a className="btn btn-primary btn-lg" href={target?.url ?? title.url} target="_blank" rel="noopener noreferrer">
-                <ExternalLink size={18} /> Open on {sourceName}
-              </a>
-            )}
-            <button className="btn btn-lg" onClick={() => setStatusOpen(true)} aria-label={status ? `Library: ${STATUS_LABELS[status]}` : "Add to library"} aria-haspopup="dialog">
-              <Library size={18} /> <span>{status ? STATUS_LABELS[status] : "Add to library"}</span>
+          <h1 id="tp-h">{title.title}</h1>
+          {credit && <p className="tp-credit">{credit}</p>}
+          {(title.rating || title.follows || lastNum) && (
+            <p className="tp-stats">
+              {title.rating ? (
+                <span>
+                  <Star size={13} aria-hidden="true" fill="currentColor" /> {title.rating.toFixed(2)}
+                </span>
+              ) : null}
+              {title.follows ? (
+                <span>
+                  <Users size={13} aria-hidden="true" /> {compactNumber(title.follows)} followers
+                </span>
+              ) : null}
+              {lastNum ? <span>{Math.floor(lastNum)} chapters</span> : null}
+            </p>
+          )}
+          {m?.description && (
+            <button className="tp-synopsis" onClick={() => setAboutOpen(true)} aria-haspopup="dialog" aria-label={`Synopsis: ${m.description.slice(0, 120)}… Open full details`}>
+              <span aria-hidden="true">{m.description}</span>
             </button>
-            <button
-              className="btn btn-lg"
-              aria-pressed={Boolean(lib?.favorite)}
-              aria-label={lib?.favorite ? "Remove from favourites" : "Add to favourites"}
-              onClick={() => {
-                void toggleFavorite(title);
-                void haptic("light");
-              }}
-            >
-              <Heart size={18} fill={lib?.favorite ? "currentColor" : "none"} />
-            </button>
-            <button className="btn btn-lg" aria-label="More actions" onClick={() => setMenu(true)}>
-              <MoreHorizontal size={18} />
-            </button>
-          </div>
+          )}
+          {tags.length > 0 && (
+            <div className="chips tp-tags" aria-label="Tags">
+              {tags.slice(0, 5).map((g) => (
+                <Link key={g} className="tag" to={`/discover?tag=${encodeURIComponent(g)}`}>
+                  {g}
+                </Link>
+              ))}
+            </div>
+          )}
+          {reason && (
+            <p className="why">
+              <Sparkles size={16} /> <span>{reason}</span>
+            </p>
+          )}
           {readCount > 0 && chs.length > 0 && (
             <div className="title-progress" aria-label={`${readCount} of ${chs.length} chapters read`}>
               <span className="title-progress-bar">
@@ -296,7 +461,8 @@ export default function TitlePage() {
               </span>
             </div>
           )}
-          <div className="cluster react-bar">
+          <div className="tp-cta-wrap">{cta}</div>
+          <div className="react-bar">
             <button className="btn btn-sm" aria-pressed={lib?.rating === 1} onClick={() => void rate(title, lib?.rating === 1 ? undefined : 1)}>
               <ThumbsUp size={15} /> {lib?.rating === 1 ? "Liked" : "Like"}
             </button>
@@ -310,90 +476,41 @@ export default function TitlePage() {
             >
               <ThumbsDown size={15} /> Not for me
             </button>
-            <Link className="btn btn-sm" to={similarPath(title)} onClick={() => void signal("more_like_this", title)}>
-              <Sparkles size={15} /> Similar
-            </Link>
+            <button
+              className="btn btn-sm"
+              aria-pressed={Boolean(lib?.favorite)}
+              onClick={() => {
+                const on = !lib?.favorite;
+                void toggleFavorite(title);
+                void haptic("light");
+                toast(on ? "Added to favourites" : "Removed from favourites", { label: "Undo", run: () => void toggleFavorite(title) });
+              }}
+            >
+              <Heart size={15} fill={lib?.favorite ? "currentColor" : "none"} /> {lib?.favorite ? "Favourited" : "Favourite"}
+            </button>
             <button className="btn btn-sm" onClick={() => void share({ title: title.title, url: location.origin + loc.pathname + loc.search }).then((r) => r === "copied" && toast("Link copied"))}>
               <Share2 size={15} /> Share
             </button>
           </div>
-        </aside>
+        </section>
 
-        <div className="stack" style={{ gap: "var(--space-6)", minWidth: 0 }}>
-          {reason && (
-            <p className="why">
-              <Sparkles size={16} /> <span>{reason}</span>
-            </p>
-          )}
-          {m?.description && (
-            <section className="title-section" aria-label="Synopsis">
-              <Kicker>Story</Kicker>
-              <p className="synopsis" data-clamped={clamp || undefined}>
-                {m.description}
-              </p>
-              {m.description.length > 360 && (
-                <button className="btn btn-sm btn-ghost" onClick={() => setClamp((c) => !c)} aria-expanded={!clamp}>
-                  {clamp ? "Read more" : "Show less"}
-                </button>
-              )}
-            </section>
-          )}
-          {(m?.genres?.length || m?.themes?.length) && (
-            <div className="chips" aria-label="Tags">
-              {[...(m?.genres ?? []), ...(m?.themes ?? [])].map((g) => (
-                <Link key={g} className="tag" to={`/discover?tag=${encodeURIComponent(g)}`}>
-                  {g}
-                </Link>
-              ))}
-            </div>
-          )}
-          <dl className="credits">
-            {m?.authors?.length ? (
-              <div>
-                <dt>Story</dt>
-                <dd>{m.authors.join(", ")}</dd>
-              </div>
-            ) : null}
-            {m?.artists?.length ? (
-              <div>
-                <dt>Art</dt>
-                <dd>{m.artists.join(", ")}</dd>
-              </div>
-            ) : null}
-            <div>
-              <dt>Source</dt>
-              <dd>
-                <a href={title.url} target="_blank" rel="noopener noreferrer">
-                  {sourceName} <ExternalLink size={12} aria-hidden="true" />
-                </a>
-              </dd>
-            </div>
-          </dl>
-          {chapters.isError ? (
-            <ErrorState error={chapters.error} retry={() => void chapters.refetch()} compact />
-          ) : chapters.isLoading ? (
-            <div aria-busy="true">
-              {Array.from({ length: 8 }, (_, i) => (
-                <div key={i} className="skeleton skeleton-line" style={{ height: 40, margin: "8px 0" }} />
-              ))}
-            </div>
-          ) : !chs.length ? (
-            <EmptyState
-              title={`No chapters on ${sourceName}`}
-              action={
-                <button className="btn" onClick={() => nav(`/search?q=${encodeURIComponent(title.title)}`)}>
-                  Look for it on other sources
-                </button>
-              }
-            >
-              {sourceName} lists this title but hosts no readable English chapters, which usually means it is officially licensed. Dawghwa only shows chapters a source actually provides.
-            </EmptyState>
-          ) : (
-            <ChapterList title={title} chapters={chs} readable={readable} sourceName={sourceName} />
-          )}
-          <MoreLikeThis title={title} />
+        <div className="tp-main">
+          <div className="tp-tabs" role="tablist" aria-label="Series sections" onKeyDown={onTabKey}>
+            {TABS.map((x) => (
+              <button key={x.id} id={`tp-tab-${x.id}`} role="tab" aria-selected={tab === x.id} aria-controls={`tp-panel-${x.id}`} tabIndex={tab === x.id ? 0 : -1} onClick={() => setTab(x.id)}>
+                {x.label}
+                {x.id === "chapters" && chs.length > 0 && <small>{chs.length}</small>}
+              </button>
+            ))}
+          </div>
+          <div className="tp-panel" role="tabpanel" id={`tp-panel-${tab}`} aria-labelledby={`tp-tab-${tab}`}>
+            {tab === "chapters" ? chapterPanel : tab === "about" ? about : <MoreLikeThis title={title} />}
+          </div>
         </div>
       </div>
+      <Sheet open={aboutOpen} onClose={() => setAboutOpen(false)} title={title.title}>
+        {about}
+      </Sheet>
       <Sheet open={statusOpen} onClose={() => setStatusOpen(false)} title="Library">
         <div className="menu-list" role="radiogroup" aria-label="Library status">
           {(Object.keys(STATUS_LABELS) as LibraryStatus[]).map((s) => (
@@ -403,12 +520,14 @@ export default function TitlePage() {
               role="radio"
               aria-checked={status === s}
               onClick={() => {
+                const was = status;
                 void setStatus(title, s);
                 void haptic("light");
                 setStatusOpen(false);
+                if (was !== s) toast(`Moved to ${STATUS_LABELS[s]}`, { label: "Undo", run: () => void setStatus(title, was) });
               }}
             >
-              {status === s ? <Check size={18} /> : <span style={{ width: 18 }} />} {STATUS_LABELS[s]}
+              <span className="radio-dot" aria-hidden="true" /> {STATUS_LABELS[s]}
             </button>
           ))}
           {status && (
@@ -420,7 +539,7 @@ export default function TitlePage() {
                 toast("Removed from library");
               }}
             >
-              <span style={{ width: 18 }} /> Remove from library
+              <X size={18} /> Remove from library
             </button>
           )}
         </div>

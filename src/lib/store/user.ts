@@ -282,6 +282,8 @@ export interface ProgressUpdate {
   page: number;
   pageCount: number;
   fraction: number;
+  /** Vertical mode: scroll offset inside the current page, 0..1 of its height. */
+  offset?: number;
   /** The reader reached the end of the chapter (last page seen). */
   finished: boolean;
   /** Total chapters known, to detect finishing the whole title. */
@@ -311,6 +313,7 @@ export async function saveProgress(u: ProgressUpdate): Promise<ProgressRecord | 
     page: Math.max(0, u.page),
     pageCount: Math.max(0, u.pageCount),
     fraction: Math.min(1, Math.max(0, u.fraction)),
+    offset: u.offset === undefined ? undefined : Math.min(1, Math.max(0, u.offset)),
     read,
     maxReadNumber: Math.max(prev?.maxReadNumber ?? 0, newlyFinished || read[u.chapterId] ? u.chapterNumber : 0),
     startedAt: prev?.startedAt ?? now,

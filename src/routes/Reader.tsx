@@ -105,6 +105,7 @@ export default function Reader() {
   const [failures, setFailures] = useState(0);
   const [reachedEnd, setReachedEnd] = useState(false);
   const [endView, setEndView] = useState(false);
+  const [countdown, setCountdown] = useState<number | null>(null);
   const scroller = useRef<HTMLDivElement>(null);
   const restored = useRef(false);
 
@@ -113,6 +114,7 @@ export default function Reader() {
   // reset per chapter
   useEffect(() => {
     setPage(startPage);
+    setCountdown(null);
     setReachedEnd(false);
     setEndView(false);
     setFailures(0);
@@ -127,15 +129,18 @@ export default function Reader() {
   useEffect(() => () => void setImmersive(false), []);
 
   // ------------------------------------------------------------ progress
+  // vertical mode: the page at the top of the viewport and how far into it the reader is
+  const anchor = useRef<{ page: number; offset: number } | null>(null);
   const latest = useRef({ page, reachedEnd });
   latest.current = { page, reachedEnd };
   const save = useCallback(
     (finished = latest.current.reachedEnd) => {
       if (!title || !chapter || !count) return;
-      const p = Math.min(latest.current.page, count - 1);
-      void saveProgress({ title, chapterId: chapter.id, chapterNumber: chapter.number, chapterTitle: chapter.title, page: p, pageCount: count, fraction: finished ? 1 : (p + 1) / count, finished, lastChapterNumber: list.at(-1)?.number });
+      const a = mode === "vertical" ? anchor.current : null;
+      const p = Math.min(a ? a.page : latest.current.page, count - 1);
+      void saveProgress({ title, chapterId: chapter.id, chapterNumber: chapter.number, chapterTitle: chapter.title, page: p, offset: a?.offset, pageCount: count, fraction: finished ? 1 : (p + 1) / count, finished, lastChapterNumber: list.at(-1)?.number });
     },
-    [title, chapter, count, list],
+    [title, chapter, count, list, mode],
   );
   useEffect(() => {
     if (!count) return;
@@ -176,13 +181,59 @@ export default function Reader() {
     };
   }, [mode, count, chapterId]);
 
-  // restore scroll position once pages exist
+  // track the exact reading position (page at the viewport top + offset inside it), saved with progress
   useEffect(() => {
-    if (mode !== "vertical" || !count || restored.current) return;
+    if (mode !== "vertical" || !count) return;
+    let raf = 0;
+    const on = () => {
+      cancelAnimationFrame(raf);
+      raf = requestAnimationFrame(() => {
+        const els = scroller.current?.querySelectorAll<HTMLElement>(".rd-page");
+        if (!els) return;
+        for (const el of els) {
+          const r = el.getBoundingClientRect();
+          if (r.bottom > 0) {
+            anchor.current = { page: Number(el.dataset.index), offset: r.height ? Math.max(0, -r.top) / r.height : 0 };
+            break;
+          }
+        }
+      });
+    };
+    window.addEventListener("scroll", on, { passive: true });
+    return () => {
+      cancelAnimationFrame(raf);
+      window.removeEventListener("scroll", on);
+    };
+  }, [mode, count, chapterId]);
+
+  // restore the saved position once pages exist; keep it pinned while images above it load
+  // and change height, until the reader scrolls or touches the page themselves
+  useEffect(() => {
+    if (mode !== "vertical" || !count || !title || restored.current) return;
     restored.current = true;
-    if (startPage > 0) requestAnimationFrame(() => scroller.current?.querySelector(`[data-index="${startPage}"]`)?.scrollIntoView({ block: "start" }));
-    else window.scrollTo(0, 0);
-  }, [mode, count, startPage]);
+    anchor.current = null;
+    const offset = prog?.chapterId === chapterId && prog.page === startPage ? (prog.offset ?? 0) : 0;
+    if (startPage <= 0 && offset <= 0) return void window.scrollTo(0, 0);
+    const root = scroller.current;
+    if (!root) return;
+    const pin = () => {
+      const el = root.querySelector<HTMLElement>(`[data-index="${startPage}"]`);
+      if (!el) return;
+      const top = el.getBoundingClientRect().top + window.scrollY + el.offsetHeight * offset;
+      window.scrollTo(0, Math.max(0, top - 1));
+    };
+    requestAnimationFrame(pin);
+    const ro = new ResizeObserver(() => pin());
+    ro.observe(root);
+    const stop = () => {
+      ro.disconnect();
+      clearTimeout(tm);
+      for (const e of ["wheel", "touchstart", "keydown", "pointerdown"]) window.removeEventListener(e, stop);
+    };
+    const tm = setTimeout(stop, 8000);
+    for (const e of ["wheel", "touchstart", "keydown", "pointerdown"]) window.addEventListener(e, stop, { passive: true, once: true });
+    return stop;
+  }, [mode, count, startPage, title]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ------------------------------------------------------------ paged
   const spreads = useMemo(() => {
@@ -295,15 +346,17 @@ export default function Reader() {
   const onFail = useCallback(() => setFailures((n) => n + 1), []);
 
   // auto-advance: countdown on the end panel
-  const [countdown, setCountdown] = useState<number | null>(null);
   useEffect(() => {
     if (!reachedEnd || !settings.autoNext || !next || mode !== "vertical") return setCountdown(null);
     setCountdown(5);
     const iv = setInterval(() => setCountdown((c) => (c === null ? null : c - 1)), 1000);
     return () => clearInterval(iv);
   }, [reachedEnd, settings.autoNext, next, mode]);
+  // Fire once per countdown: clear it before navigating, so the next chapter's "next" can't re-trigger it.
   useEffect(() => {
-    if (countdown === 0) goChapter(next);
+    if (countdown !== 0) return;
+    setCountdown(null);
+    goChapter(next);
   }, [countdown, goChapter, next]);
 
   // preload upcoming pages in paged mode
@@ -424,7 +477,7 @@ export default function Reader() {
           <ArrowLeft size={20} />
         </Link>
         <div className="rd-titles">
-          <span className="rd-series">{title?.title ?? "Loading"}</span>
+          <span className="rd-series">{title?.title ?? (t.isError ? "Reader" : "Loading…")}</span>
           <span className="rd-chapter">
             {chapter ? `Chapter ${chapter.number}${chapter.title ? `: ${chapter.title}` : ""}` : ""}
             {chapter?.group ? ` · ${chapter.group.name}` : ""} · via {sourceName}
@@ -476,6 +529,11 @@ export default function Reader() {
           />
         ) : (
           <span style={{ flex: 1 }} />
+        )}
+        {rtl && count > 1 && (
+          <span className="rd-dir" title="Pages run right to left">
+            <ArrowLeft size={13} aria-hidden="true" /> RTL
+          </span>
         )}
         <span className="rd-count">{pageLabel}</span>
         <button className="icon-btn" disabled={!(rtl ? prev : next)} onClick={() => goChapter(rtl ? prev : next)} aria-label={rtl ? "Previous chapter" : "Next chapter"}>

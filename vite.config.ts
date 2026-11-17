@@ -57,7 +57,8 @@ export default defineConfig(({ mode }) => {
     },
     build: {
       target: "es2020",
-      sourcemap: true,
+      // Maps are opt-in (SOURCEMAP=1) so production does not ship source.
+      sourcemap: process.env.SOURCEMAP === "1",
       chunkSizeWarningLimit: 300,
       rollupOptions: {
         output: {

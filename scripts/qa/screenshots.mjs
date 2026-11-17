@@ -1,8 +1,10 @@
 import { chromium } from "playwright";
-const base = "http://localhost:4173";
+const base = process.env.BASE || "http://localhost:4173";
 const [,, ...paths] = process.argv;
 const browser = await chromium.launch();
-for (const vp of [{ name: "m", width: 390, height: 844, mobile: true }, { name: "d", width: 1440, height: 900 }]) {
+const ALL = { s: { name: "s", width: 360, height: 740, mobile: true }, m: { name: "m", width: 390, height: 844, mobile: true }, l: { name: "l", width: 430, height: 932, mobile: true }, t: { name: "t", width: 820, height: 1180, mobile: true }, d: { name: "d", width: 1440, height: 900 }, x: { name: "x", width: 1920, height: 1080 } };
+const VPS = (process.env.VPS || "m,d").split(",").map((k) => ALL[k]).filter(Boolean);
+for (const vp of VPS) {
   const ctx = await browser.newContext({ serviceWorkers: "block", colorScheme: process.env.THEME || "light", viewport: { width: vp.width, height: vp.height }, isMobile: !!vp.mobile, hasTouch: !!vp.mobile, deviceScaleFactor: 1 });
   const page = await ctx.newPage();
   // Sandbox browser egress returns 502 for uploads.mangadex.org; relay through Node (QA only).
