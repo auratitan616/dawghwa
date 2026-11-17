@@ -264,8 +264,14 @@ export default function Search() {
   const intent = useMemo(() => withFilters(parseIntent(q, vocab.data), { kinds: fKinds, status: fStatus, tags: fTags, order: fOrder }), [q, vocab.data, params]); // eslint-disable-line react-hooks/exhaustive-deps
   const hasQuery = Boolean(q) || filterCount > 0;
   const genres = useMemo(() => (vocab.data?.tags ?? []).filter((t) => t.group === "genre").map((t) => t.name).sort(), [vocab.data]);
-  const lastWord = text.trim().split(/\s+/).pop()?.toLowerCase() ?? "";
-  const tagSuggest = lastWord.length >= 2 ? (vocab.data?.tags ?? []).filter((t) => t.group !== "content" && t.name.toLowerCase().startsWith(lastWord) && !intent.includeTags.includes(t.name)).slice(0, 4) : [];
+  const words = text.trim().toLowerCase().split(/\s+/);
+  const lastWord = words.at(-1) ?? "";
+  // "no harem", "without gore": the word is an exclusion, so offering it as an include filter would invert the ask
+  const negated = /^(no|not|without|except|minus|non|zero)$/.test(words.at(-2) ?? "");
+  const tagSuggest =
+    lastWord.length >= 2 && !negated
+      ? (vocab.data?.tags ?? []).filter((t) => t.group !== "content" && t.name.toLowerCase().startsWith(lastWord) && !intent.includeTags.includes(t.name) && !intent.excludeTags.includes(t.name)).slice(0, 4)
+      : [];
   const seedQ = useQuery({
     queryKey: ["seed", similarKey],
     enabled: Boolean(similarKey),
@@ -543,7 +549,7 @@ export default function Search() {
           ) : (
             <TitleGrid items={items} context="search" />
           )}
-          {!structured && q.length >= 2 && online && !apiUnreachable && (
+          {!structured && q.length >= 2 && online && !apiUnreachable && !active.isError && (
             <div style={{ marginTop: 28 }}>
               <AllSources q={q} />
             </div>

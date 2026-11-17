@@ -15,7 +15,7 @@ import type { LibraryStatus } from "@/lib/store/db";
 import { useRankContext } from "@/lib/feed/context";
 import { explain, positivesOf, scoreTitle } from "@/lib/intel/rank";
 import { cosineSparse, vectorize } from "@/lib/intel/features";
-import { compactNumber, kindLabel, plainText, readerPath, statusLabel, type Title } from "@/lib/titles";
+import { compactNumber, kindLabel, markUnreadable, plainText, readerPath, statusLabel, type Title } from "@/lib/titles";
 import { useWindowVirtual } from "@/lib/useWindowVirtual";
 import { share, haptic } from "@/lib/platform";
 import type { Chapter } from "@/lib/api/types";
@@ -222,6 +222,9 @@ export default function TitlePage() {
     const sc = scoreTitle(title, ctx, pos);
     return sc.score > 0.55 ? explain(sc, ctx, pos)?.text : undefined;
   }, [title, ctx, loc.state]);
+  useEffect(() => {
+    if (title && chapters.data && !chapters.data.chapters.length) markUnreadable(title.key);
+  }, [title, chapters.data]);
 
   const bareBar = (
     <div className="tp-bar" data-scrolled="">

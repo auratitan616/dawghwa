@@ -83,10 +83,21 @@ const KINDS: MangaKind[] = ["manga", "manhwa", "manhua"];
 type Opt = { signal?: AbortSignal };
 
 let filtersPromise: Promise<CatalogFilters> | undefined;
+let filtersFailedAt = 0;
+/** A failed vocabulary fetch is remembered this long, so a tripped upstream isn't hammered by every consumer. */
+const FILTERS_FAILURE_TTL = 20_000;
+/** Forget a remembered failure (an explicit Retry). */
+export function clearCatalogFiltersFailure() {
+  if (filtersFailedAt) {
+    filtersFailedAt = 0;
+    filtersPromise = undefined;
+  }
+}
 /** Filter vocabulary, fetched once per session (the API caches it for 24h). */
 export function catalogFilters(o: Opt = {}): Promise<CatalogFilters> {
+  if (filtersFailedAt && Date.now() - filtersFailedAt > FILTERS_FAILURE_TTL) clearCatalogFiltersFailure();
   filtersPromise ??= request<CatalogFilters>(`/api/catalog/filters?provider=${CATALOG_PROVIDER}`, { timeoutMs: 15_000 }).catch((e) => {
-    filtersPromise = undefined;
+    filtersFailedAt = Date.now();
     throw e;
   });
   if (!o.signal) return filtersPromise;

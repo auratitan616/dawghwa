@@ -1,0 +1,24 @@
+// QA for critic round 3: N8 negated tag suggestion, N10 filters requests while the API is down.
+import { chromium } from "playwright";
+const base = process.env.BASE || "http://localhost:4173";
+const b = await chromium.launch();
+const ctx = await b.newContext({ serviceWorkers: "block", viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
+const p = await ctx.newPage();
+await p.goto(base + "/welcome");
+await p.getByRole("button", { name: "Skip" }).click();
+await p.waitForTimeout(800);
+await p.goto(base + "/search");
+const box = p.getByRole("searchbox").first();
+await box.fill("completed fantasy manhwa with no harem");
+await p.waitForTimeout(2500);
+const negSuggest = await p.locator(".suggest-row .suggest").allTextContents();
+await box.fill("completed fantasy manhwa with har");
+await p.waitForTimeout(1500);
+const posSuggest = await p.locator(".suggest-row .suggest").allTextContents();
+let filters = 0;
+await p.route("**/api/**", (r) => { if (r.request().url().includes("/catalog/filters")) filters++; return r.fulfill({ status: 503, contentType: "application/json", body: '{"error":"down","code":"SOURCE_CIRCUIT_OPEN"}' }); });
+await p.goto(base + "/");
+await p.waitForTimeout(10000);
+const allSources = await p.goto(base + "/search?q=solo%20leveling").then(() => p.waitForTimeout(6000)).then(() => p.getByRole("button", { name: "Search all sources" }).count());
+console.log(JSON.stringify({ negSuggest, posSuggest, filtersRequestsIn16s: filters, allSourcesOn503: allSources }));
+await b.close();

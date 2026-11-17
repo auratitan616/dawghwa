@@ -56,6 +56,14 @@ Round 2 scored 8.86 (all gate categories ≥ 9, no criticals). P12 and P16 were 
 - N3 not done: the catalogue has no readability signal, and probing chapters for every hero candidate would add 6 or more upstream calls to the LCP path. The hero CTA honestly says "View series" for those titles.
 - The e2e reader test skips with a reason when MangaDex's circuit is open upstream (503 SOURCE_CIRCUIT_OPEN), instead of crashing.
 
-### Next
+PR #5 merged (672311e). Production verified: the deployed bundles contain the new strings.
 
-- Critic round 3.
+## Milestone: critic round 3 accepted, then polish (`fix/critic-round3`)
+
+Round 3 scored 9.0 overall (8.995 unrounded) and was ACCEPTED, with Blueprint 9.0, UX 9.0, Reader 9.2 and Responsive 9.4. Polish for the critic's remaining notes:
+- N8: search no longer suggests a tag the query negates ("no harem" used to suggest Harem). Excluded tags are never suggested.
+- N9: "Search all sources" is hidden when the active search errored.
+- N10: a failed catalogue-filters fetch is cached for 20s, which stops request storms. Home's Retry clears it.
+- N3 follow-up: titles found to have 0 readable chapters are remembered locally (catalogue fact, 7-day TTL, max 300) and skipped as the home hero.
+- P17: the footer reads "through Dawghwa."
+- Verified with `scripts/qa/round3-check.mjs`. The negated query got no suggestion and the positive one got Theme Harem. 6 filter requests over 2 page loads in 16s. 0 "all sources" on a 503. tsc, eslint, 50 unit tests, build, and Playwright e2e (17 passed, 1 reader test skipped because the upstream circuit was open) all pass.

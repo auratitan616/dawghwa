@@ -16,12 +16,19 @@ import { rank, rerankRow, surprise, type RankContext, type Scored } from "@/lib/
 import { evidence } from "@/lib/intel/learner";
 import { cosineSparse, vectorize } from "@/lib/intel/features";
 import { useBrowse } from "@/lib/query";
+import { clearCatalogFiltersFailure } from "@/lib/api/catalog";
 import { useHead } from "@/lib/seo";
 import { continueList, useUser } from "@/lib/store/user";
 import { MascotSays } from "@/components/Mascot";
-import { readerPath, titlePath, type Title, isMature } from "@/lib/titles";
+import { readerPath, titlePath, type Title, isMature, isKnownUnreadable } from "@/lib/titles";
 
 const MIN_ROW = 6;
+
+/** One Retry for the whole page: forget remembered failures, then refetch every failed query. */
+function retryAll(qc: ReturnType<typeof useQueryClient>) {
+  clearCatalogFiltersFailure();
+  void qc.refetchQueries({ type: "active", predicate: (x) => x.state.status === "error" });
+}
 
 /** Page-level registry so later rows skip titles shown in earlier rows. */
 function createClaims() {
@@ -130,7 +137,7 @@ function CatalogueSection({ def, ctx, claims, order }: { def: SectionDef; ctx: R
     const n = claims.failed.size;
     return (
       <section className="section" ref={ref}>
-        <ErrorState error={q.error} retry={() => void qc.refetchQueries({ type: "active", predicate: (x) => x.state.status === "error" })} compact />
+        <ErrorState error={q.error} retry={() => retryAll(qc)} compact />
         {n > 1 && <p className="muted section-note">{n} shelves couldn't load. Retry reloads all of them.</p>}
       </section>
     );
@@ -163,13 +170,16 @@ function Featured({ ctx, claims }: { ctx: RankContext; claims: Claims }) {
   const items = useMemo(() => {
     // The hero is full-bleed key art, so it never features titles the provider marks suggestive or adult.
     const withCover = (q.data?.items ?? []).filter((t) => t.cover && !isMature(t));
-    const described = withCover.filter((t) => t.meta?.description);
-    return rerankRow(described.length >= 3 ? described : withCover, ctx).slice(0, 6);
+    // titles already found to have nothing readable stay out of the hero, whose CTA promises reading
+    const readable = withCover.filter((t) => !isKnownUnreadable(t.key));
+    const pool = readable.length >= 3 ? readable : withCover;
+    const described = pool.filter((t) => t.meta?.description);
+    return rerankRow(described.length >= 3 ? described : pool, ctx).slice(0, 6);
   }, [q.data, ctx]);
   if (failedNow)
     return (
       <div className="home-error">
-        <ErrorState error={q.error} retry={() => void qc.refetchQueries({ type: "active", predicate: (x) => x.state.status === "error" })} />
+        <ErrorState error={q.error} retry={() => retryAll(qc)} />
       </div>
     );
   if (q.data && !items.length) return null;

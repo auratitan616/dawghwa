@@ -4,7 +4,7 @@ import { Check, ChevronLeft, ChevronRight, Plus } from "lucide-react";
 import { toast } from "@/components/Toast";
 import { useChapters } from "@/lib/query";
 import { setStatus, useUser } from "@/lib/store/user";
-import { kindLabel, plainText, readerPath, statusLabel, titlePath, type Title } from "@/lib/titles";
+import { kindLabel, markUnreadable, plainText, readerPath, statusLabel, titlePath, type Title } from "@/lib/titles";
 
 /**
  * Blueprint home hero: one large artwork card per featured series, title and
@@ -78,6 +78,9 @@ function HeroSlide({ t, i, n, active }: { t: Title; i: number; n: number; active
   // chapters only for the visible slide: one request, not one per slide
   const chapters = useChapters(active ? t : undefined);
   const first = chapters.data?.chapters[0];
+  useEffect(() => {
+    if (chapters.data && !chapters.data.chapters.length) markUnreadable(t.key);
+  }, [chapters.data, t.key]);
   const saved = Boolean(lib?.status);
   const read = p ? { to: readerPath(t, p.chapterId, p.page || undefined), label: `Continue ch. ${p.chapterNumber}` } : first
       ? { to: readerPath(t, first.id), label: "Start reading" }
