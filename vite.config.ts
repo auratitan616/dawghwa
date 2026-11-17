@@ -18,10 +18,17 @@ export default defineConfig(({ mode }) => {
         manifest: false, // public/manifest.webmanifest is the single source of truth
         workbox: {
           globPatterns: ["**/*.{js,css,html,woff2,svg,png,webmanifest}"],
+          // Only the Latin font subsets are precached; other scripts load on demand (unicode-range) and are cached at runtime.
+          globIgnores: ["**/*-{cyrillic,cyrillic-ext,greek,greek-ext,vietnamese,latin-ext}-*.woff2"],
           navigateFallback: "/index.html",
           navigateFallbackDenylist: [/^\/api\//, /^\/sitemap/, /^\/robots/],
           cleanupOutdatedCaches: true,
           runtimeCaching: [
+            {
+              urlPattern: ({ request, sameOrigin }) => sameOrigin && request.destination === "font",
+              handler: "CacheFirst",
+              options: { cacheName: "fonts", expiration: { maxEntries: 20 } },
+            },
             {
               // Cover art: immutable per file name on MangaDex; bounded cache.
               urlPattern: ({ url }) => url.hostname === "uploads.mangadex.org" && url.pathname.startsWith("/covers/"),

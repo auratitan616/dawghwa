@@ -152,14 +152,20 @@ function MagazineHead({ name, resuming }: { name?: string; resuming: boolean }) 
 }
 
 function Featured({ ctx }: { ctx: RankContext }) {
-  const q = useBrowse({ order: "popular", limit: 30, createdWithinDays: 1095 });
+  // most-followed series; prefer ones with a synopsis to show
+  const q = useBrowse({ order: "popular", limit: 30 });
   const [i, setI] = useState(0);
   const lib = useUser((s) => s.library);
   const progress = useUser((s) => s.progress);
-  const items = useMemo(() => rerankRow((q.data?.items ?? []).filter((t) => t.meta?.description && t.cover), ctx).slice(0, 5), [q.data, ctx]);
+  const items = useMemo(() => {
+    const withCover = (q.data?.items ?? []).filter((t) => t.cover);
+    const described = withCover.filter((t) => t.meta?.description);
+    return rerankRow(described.length >= 3 ? described : withCover, ctx).slice(0, 5);
+  }, [q.data, ctx]);
   const t = items.length ? items[Math.min(i, items.length - 1)] : undefined;
   const chapters = useChapters(t);
   if (q.isError && !q.data) return <ErrorState error={q.error} retry={() => void q.refetch()} />;
+  if (q.data && !items.length) return null;
   if (!t)
     return (
       <div className="feature panel" aria-busy="true" aria-label="Loading featured title">
@@ -196,7 +202,7 @@ function Featured({ ctx }: { ctx: RankContext }) {
           <h2 className="feature-title" data-long={t.title.length > 40 ? "" : undefined}>
             <Link to={titlePath(t)}>{t.title}</Link>
           </h2>
-          <p className="feature-desc">{t.meta?.description}</p>
+          {t.meta?.description && <p className="feature-desc">{t.meta.description}</p>}
           {genres.length > 0 && (
             <div className="feature-tags">
               {genres.map((g) => (
@@ -408,8 +414,8 @@ export default function Home() {
         <button className="mood mood-lime" onClick={doSurprise}>
           <Dices size={17} /> Surprise me
         </button>
-        <Link className="mood" to="/search?q=hidden%20gems%20with%20fewer%20than%20100%20chapters">
-          <Sparkles size={16} /> Short hidden gems
+        <Link className="mood" to="/search?q=completed%20romance%20with%20fewer%20than%20100%20chapters">
+          <Sparkles size={16} /> Short completed romance
         </Link>
         <Link className="mood" to="/search?q=completed%20fantasy%20manhwa">
           <CheckCircle2 size={16} /> Completed fantasy

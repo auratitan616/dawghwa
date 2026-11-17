@@ -81,7 +81,7 @@ export function useBrowseInfinite(q: BrowseQuery | null, pageSize = 30) {
 export function useVocabulary() {
   return useQuery({
     queryKey: ["vocab", BROWSE_SOURCE],
-    queryFn: ({ signal }) => api.vocabulary(BROWSE_SOURCE, { signal }),
+    queryFn: ({ signal }) => api.vocabulary({ signal }),
     staleTime: 24 * 3600_000,
   });
 }
@@ -97,9 +97,13 @@ export function useTitle(sourceId: string, id: string, url?: string) {
     queryKey: ["title", key],
     queryFn: async ({ signal }) => {
       const cached = await (await db()).get("titles", key);
-      const body = isIdAddressable(sourceId) ? { source: sourceId, id } : { source: sourceId, url: url ?? cached?.url ?? "" };
-      if (!("id" in body) && !body.url) throw new Error("This title link is incomplete. Open it again from search.");
-      const res = await api.manga(body, { signal });
+      let res;
+      if (isIdAddressable(sourceId)) res = await api.title(id, { signal });
+      else {
+        const u = url ?? cached?.url ?? "";
+        if (!u) throw new Error("This title link is incomplete. Open it again from search.");
+        res = await api.manga({ source: sourceId, url: u }, { signal });
+      }
       const m = res.manga;
       const t: Title = mergeTitle(cached, {
         key,

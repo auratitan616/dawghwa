@@ -4,11 +4,10 @@ import { evidence } from "../intel/learner";
 import { detectThemes } from "../intel/themes";
 import type { Prefs } from "../intel/rank";
 import type { Title } from "../titles";
-import { isGem, GEM } from "../search/local";
 
 /**
  * Home sections are data, not hard-coded screens. Each catalogue section is a
- * real /api/browse query; "local" filters (story themes, hidden gems) are
+ * real catalogue query (GET /api/catalog); "local" filters (story themes) are
  * applied to that query's results and the subtitle says how the row was made.
  * A row with fewer than `min` real items is not shown: no filler content.
  */
@@ -34,27 +33,17 @@ export interface SectionDef {
 
 const themeFilter = (id: string) => (t: Title) => detectThemes(t).includes(id);
 const kindQ = (kinds: MangaKind[], extra: BrowseQuery = {}): BrowseQuery => ({ kinds, order: "popular", limit: 40, ...extra });
+const THIS_YEAR = new Date().getFullYear();
 const DARK = new Set(["psychological", "tragedy", "horror", "gore", "thriller"]);
 
 export const CATALOGUE_SECTIONS: SectionDef[] = [
-  { id: "trending", title: "Rising this year", subtitle: "Most-followed series added in the last 12 months", query: { order: "popular", createdWithinDays: 365, limit: 40 }, focus: [], priority: 90, layout: "ranked", more: "/discover?order=popular&new=365" },
+  { id: "trending", title: "Popular this year", subtitle: `Most-followed series first published in ${THIS_YEAR}`, query: { order: "popular", year: THIS_YEAR, limit: 40 }, focus: [], priority: 90, layout: "ranked", more: `/discover?year=${THIS_YEAR}` },
   { id: "new-chapters", title: "New chapters", subtitle: "Most recently updated series", query: { order: "latest", limit: 40 }, focus: [], priority: 85, more: "/discover?order=latest" },
   { id: "popular-manhwa", title: "Popular manhwa", subtitle: "Korean series, by followers", query: kindQ(["manhwa"]), focus: ["k:manhwa"], priority: 80, more: "/discover?kind=manhwa" },
   { id: "popular-manga", title: "Popular manga", subtitle: "Japanese series, by followers", query: kindQ(["manga"]), focus: ["k:manga"], priority: 79, more: "/discover?kind=manga" },
   { id: "popular-manhua", title: "Popular manhua", subtitle: "Chinese series, by followers", query: kindQ(["manhua"]), focus: ["k:manhua"], priority: 60, more: "/discover?kind=manhua" },
   { id: "completed", title: "Finished series", subtitle: "Completed, most recently updated first", query: { status: ["completed"], order: "latest", limit: 40 }, focus: ["st:completed"], priority: 70, layout: "spread", more: "/discover?status=completed&order=latest" },
   { id: "top-rated", title: "Highest rated", subtitle: "By reader rating on MangaDex", query: { order: "rating", limit: 40 }, focus: [], priority: 65, layout: "ranked", more: "/discover?order=rating" },
-  {
-    id: "hidden-gems",
-    title: "Hidden gems",
-    subtitle: `Rated ${GEM.minRating}+ with fewer than ${GEM.maxFollows / 1000}k followers`,
-    query: { order: "rating", limit: 100, offset: 100 },
-    filter: isGem,
-    focus: [],
-    priority: 62,
-    layout: "spread",
-    more: "/search?q=hidden%20gems",
-  },
   { id: "revenge", title: "Revenge stories", subtitle: "Synopsis mentions revenge or vengeance", query: kindQ(["manhwa"], { includedTags: ["Action"], limit: 100 }), filter: themeFilter("revenge"), focus: ["s:revenge"], priority: 50, layout: "wide", more: "/search?q=revenge%20manhwa" },
   { id: "regression", title: "Second chances", subtitle: "Regression and time-travel stories", query: { includedTags: ["Fantasy"], order: "popular", limit: 100 }, filter: themeFilter("regression"), focus: ["s:regression", "t:time travel"], priority: 49, layout: "wide", more: "/search?q=regression" },
   { id: "overpowered", title: "Overpowered leads", subtitle: "Synopsis calls the lead the strongest, overpowered or invincible", query: { includedTags: ["Action"], order: "popular", limit: 100 }, filter: themeFilter("overpowered"), focus: ["s:overpowered"], priority: 48, more: "/search?q=overpowered%20mc" },

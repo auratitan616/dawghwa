@@ -38,7 +38,7 @@ const SORTS: [BrowseOrder | "", string][] = [
 ];
 const plist = (p: URLSearchParams, k: string) => (p.get(k) ?? "").split(",").filter(Boolean);
 
-/** Explicit filters from the URL (chips / sheet) merged into the parsed intent. All are real /api/browse filters. */
+/** Explicit filters from the URL (chips / sheet) merged into the parsed intent. All are real catalogue filters (or labelled on-device ones). */
 function withFilters(i: Intent, f: { kinds: string[]; status: string[]; tags: string[]; order?: BrowseOrder }): Intent {
   const n = f.kinds.length + f.status.length + f.tags.length + (f.order ? 1 : 0);
   if (!n) return i;
@@ -52,7 +52,7 @@ function withFilters(i: Intent, f: { kinds: string[]; status: string[]; tags: st
   return { ...i, kinds, status, includeTags, order: f.order ?? i.order, chips, structured: true };
 }
 
-const EXAMPLES = ["Manhwa with an overpowered MC and revenge", "Completed fantasy manga with romance", "Dark Korean manhwa without a love triangle", "Something similar to Solo Leveling", "Hidden gems with fewer than 100 chapters"];
+const EXAMPLES = ["Manhwa with an overpowered MC and revenge", "Completed fantasy manga with romance", "Dark Korean manhwa without a love triangle", "Something similar to Solo Leveling", "Completed romance with fewer than 100 chapters"];
 
 function useDebounced<T>(v: T, ms: number) {
   const [d, setD] = useState(v);
@@ -201,7 +201,7 @@ export default function Search() {
     ["kind", "status", "tag", "order"].forEach((k) => p.delete(k));
     setParams(p, { replace: true });
   };
-  const trending = useBrowse({ order: "popular", createdWithinDays: 365, limit: 10 });
+  const trending = useBrowse({ order: "popular", year: new Date().getFullYear(), limit: 10 });
   const removeRecent = (r: string) => {
     const next = readRecent(profileId).filter((x) => x !== r);
     localStorage.setItem(recentKey(profileId), JSON.stringify(next));
@@ -427,7 +427,7 @@ export default function Search() {
                     <TrendingUp size={20} style={{ verticalAlign: -2, marginRight: 6 }} />
                     Rising this year
                   </h2>
-                  <p>Most-followed series added in the last 12 months</p>
+                  <p>Most-followed series first published this year</p>
                 </div>
               </div>
               <ol className="trend-list">
@@ -466,6 +466,7 @@ export default function Search() {
               {intentQ.data.seedMissing ? `Couldn't find "${intent.similarTo}" in the catalogue, so this uses the other filters only. ` : ""}
               {local.length || intentQ.data.downgraded.length ? `Filtered on this device: ${intentQ.data.removedLocally} of ${intentQ.data.scanned} fetched titles removed.` : ""}
               {intentQ.data.downgraded.length ? ` Not supported by the catalogue, applied locally: ${intentQ.data.downgraded.join(", ")}.` : ""}
+              {intentQ.data.unavailable.length ? ` Not applied, because the catalogue does not provide the data: ${intentQ.data.unavailable.join(", ")}.` : ""}
             </p>
           )}
           {active.isError && !items.length ? (

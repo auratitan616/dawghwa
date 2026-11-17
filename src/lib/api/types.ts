@@ -143,23 +143,20 @@ export interface PagesResponse {
   meta?: CacheMeta & { dataSaver?: boolean };
 }
 
-export type BrowseOrder = "popular" | "rating" | "latest" | "new" | "relevance" | "year";
+export type BrowseOrder = "popular" | "rating" | "latest" | "new" | "relevance" | "title";
 
 export interface BrowseQuery {
   source?: string;
   query?: string;
   includedTags?: string[];
   excludedTags?: string[];
-  includedTagsMode?: "and" | "or";
   kinds?: MangaKind[];
   status?: ("ongoing" | "completed" | "hiatus" | "cancelled")[];
   demographic?: ("shounen" | "shoujo" | "seinen" | "josei" | "none")[];
   year?: number;
-  createdWithinDays?: number;
   order?: BrowseOrder;
   offset?: number;
   limit?: number;
-  withStats?: boolean;
 }
 
 export interface BrowseResponse {
