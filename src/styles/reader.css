@@ -1,0 +1,227 @@
+/* ============================================================ reader
+   Pages are always on a neutral near-black (or paper in light theme) so art
+   colours read true. Controls float over the page and hide in immersive mode. */
+.reader {
+  min-height: 100dvh;
+  background: #0b0a09;
+  color: #efe9df;
+  --rd-bar: rgba(14, 13, 12, 0.94);
+}
+[data-theme="light"] .reader {
+  background: #ece6da;
+  color: #1c1a17;
+  --rd-bar: rgba(246, 242, 234, 0.95);
+}
+.reader-msg {
+  display: grid;
+  place-items: center;
+  padding: var(--gutter);
+}
+.rd-top,
+.rd-bottom {
+  position: fixed;
+  left: 0;
+  right: 0;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  background: var(--rd-bar);
+  transition: transform var(--dur) var(--ease-out), opacity var(--dur);
+}
+.rd-top {
+  top: 0;
+  padding: calc(var(--safe-top) + 6px) calc(var(--safe-right) + 8px) 6px calc(var(--safe-left) + 8px);
+  border-bottom: 1px solid var(--line);
+}
+.rd-bottom {
+  bottom: 0;
+  padding: 8px calc(var(--safe-right) + 8px) calc(var(--safe-bottom) + 8px) calc(var(--safe-left) + 8px);
+  border-top: 1px solid var(--line);
+}
+.reader:not([data-controls]) .rd-top {
+  transform: translateY(-100%);
+  opacity: 0;
+}
+.reader:not([data-controls]) .rd-bottom {
+  transform: translateY(100%);
+  opacity: 0;
+}
+.rd-titles {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.rd-series {
+  font-weight: 640;
+  font-size: var(--text-sm);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.rd-chapter {
+  font-size: var(--text-xs);
+  color: var(--ink-3);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.rd-slider {
+  flex: 1;
+  accent-color: var(--accent);
+  min-width: 0;
+  height: 32px;
+}
+.rd-count {
+  font-size: var(--text-xs);
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-2);
+  min-width: 56px;
+  text-align: center;
+}
+.rd-body {
+  min-height: 100dvh;
+}
+.rd-banner {
+  position: fixed;
+  top: calc(var(--safe-top) + 64px);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 41;
+  width: min(560px, calc(100% - 24px));
+  border-radius: var(--radius-md);
+}
+
+/* page frames reserve their final size: no layout shift as images arrive */
+.rd-page {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 1 / var(--ar, 1.42);
+  background: rgba(127, 127, 127, 0.08);
+}
+.rd-page[data-state="ok"] {
+  background: transparent;
+}
+.rd-page img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  user-select: none;
+  -webkit-user-drag: none;
+}
+.rd-page-num {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  font-family: var(--font-display);
+  font-size: 32px;
+  color: rgba(127, 127, 127, 0.4);
+}
+.rd-page-error {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  color: var(--ink-2);
+  font-size: var(--text-sm);
+}
+
+/* vertical strip (webtoon) */
+.rd-strip {
+  max-width: 820px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+}
+.rd-strip.rd-gap {
+  gap: 10px;
+}
+.rd-loading {
+  max-width: 820px;
+  margin: 0 auto;
+  padding-top: calc(var(--safe-top) + 64px);
+}
+
+/* paged modes */
+.rd-spread {
+  height: 100dvh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0;
+  overflow: hidden;
+  touch-action: pan-y pinch-zoom;
+}
+.rd-spread.rd-rtl {
+  flex-direction: row-reverse;
+}
+.rd-spread .rd-page {
+  width: auto;
+  height: 100%;
+  max-width: 100%;
+  aspect-ratio: 1 / var(--ar, 1.42);
+}
+.rd-spread[data-count="2"] .rd-page {
+  max-width: 50%;
+}
+.rd-spread.rd-fit-width {
+  height: auto;
+  min-height: 100dvh;
+  align-items: flex-start;
+  overflow: visible;
+}
+.rd-spread.rd-fit-width .rd-page {
+  width: 100%;
+  height: auto;
+  max-width: 980px;
+}
+.rd-spread.rd-fit-width[data-count="2"] .rd-page {
+  width: 50%;
+}
+.rd-spread.rd-fit-original {
+  height: auto;
+  min-height: 100dvh;
+  overflow: auto;
+  align-items: flex-start;
+}
+.rd-spread.rd-fit-original .rd-page {
+  width: auto;
+  height: auto;
+  aspect-ratio: auto;
+  max-width: none;
+}
+.rd-spread.rd-fit-original .rd-page img {
+  width: auto;
+  height: auto;
+}
+
+.rd-end {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-3);
+  min-height: 60dvh;
+  padding: var(--space-12) var(--gutter) calc(var(--space-16) + var(--safe-bottom));
+  text-align: center;
+}
+.reader-single .rd-end,
+.reader-double .rd-end {
+  min-height: 100dvh;
+}
+@media (prefers-reduced-motion: reduce) {
+  .rd-top,
+  .rd-bottom {
+    transition: none;
+  }
+}
+[data-reduce-motion] .rd-top,
+[data-reduce-motion] .rd-bottom {
+  transition: none;
+}
