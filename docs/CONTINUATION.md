@@ -7,7 +7,8 @@ Living status document. Updated with each logical commit so work can resume from
 | Repo | Branch | State |
 | --- | --- | --- |
 | Titan717/dawghwa | `feature/app-foundation` | Pushed. Draft PR #1. Not merged. |
-| Titan717/dawghwa.api | `feature/catalog-metadata-browse` | Pushed. Draft PR #1. Not merged. |
+| Titan717/dawghwa.api | `feature/catalog-summary-detail` | Pushed. PR #2 (optional synopsis, tag names, demographic on MangaDex catalogue items). Not merged or deployed. |
+| Titan717/dawghwa.api | `feature/catalog-metadata-browse` | Draft PR #1, superseded by main's `/api/catalog` (1.1.0) and conflicting. Recommended to close. The app no longer uses `/api/browse`. |
 
 ## Done (verified locally)
 
@@ -23,7 +24,9 @@ Living status document. Updated with each logical commit so work can resume from
 - Android: platform added, brand icons and splash, dawghwa:// deep links, network/vibrate permissions, native API guard. A debug APK (app.dawghwa, minSdk 24, targetSdk 36) was built locally with JDK 21 + SDK 36. It was a UI-only build without VITE_API_BASE_URL, and it was not run on a device or emulator.
 - CI (`.github/workflows/ci.yml`) passes on GitHub: typecheck, lint, unit, build, e2e, and a debug APK artifact.
 - Precache trimmed to Latin fonts (70 entries, 804 KiB).
-- Last verified: `tsc -b`, `eslint --max-warnings 0`, `vite build`, `vitest run` (40 tests) all pass.
+- The app uses the deployed API's catalogue (`/api/catalog`, `/api/catalog/filters`, `/api/titles/{ref}`) through `src/lib/api/catalog.ts`. e2e 16/16 passed against both https://dawghwaapi.vercel.app and a local build of API PR #2.
+- Repository variable `DAWGHWA_API_URL=https://dawghwaapi.vercel.app` is set. CI run 44002866188 passed: live e2e 16/16 (none skipped), and the debug APK was built with that URL (bundle check step), artifact `dawghwa-debug-apk`, 5.3 MB. Not yet run on a device.
+- Last verified: `tsc -b`, `eslint --max-warnings 0`, `vite build`, `vitest run` (45 tests) all pass.
 
 ## Known environment notes
 
@@ -32,12 +35,14 @@ Living status document. Updated with each logical commit so work can resume from
 
 ## Remaining
 
-1. Deploy the API and set the repository variable `DAWGHWA_API_URL` so CI builds a working APK; test it on a device (back button, immersive reader, deep links, keyboard).
-2. Verified https App Links need a domain plus `/.well-known/assetlinks.json`.
-3. Release signing (keystore kept outside the repo) and versioning.
-4. Initial JS is about 145 KB gzip, mostly react-dom; acceptable, revisit if needed.
-5. Bump GitHub Actions to Node 24-based major versions (warnings only today).
-6. Mascot artwork: no Dawghwa mascot files were supplied. Panda.fun's panda is a different brand and is not used. Drop artwork into `src/assets/mascot/`.
+1. Test the CI APK (artifact `dawghwa-debug-apk`) on a device: back button, immersive reader, deep links, keyboard.
+2. Merge and deploy API PR #2 to restore mood and story-theme rows and filters, which need tags and synopses in list items. Until then those Home rows hide themselves and search reports the filters as not applied.
+3. Hidden gems needs follower counts, which the catalogue does not return. It could come back if the API adds MangaDex statistics.
+4. Verified https App Links need a domain plus `/.well-known/assetlinks.json`.
+5. Release signing (keystore kept outside the repo) and versioning.
+6. Initial JS is about 145 KB gzip, mostly react-dom; acceptable, revisit if needed.
+7. Bump GitHub Actions to Node 24-based major versions (warnings only today).
+8. Mascot artwork: no Dawghwa mascot files were supplied. Panda.fun's panda is a different brand and is not used. Drop artwork into `src/assets/mascot/`.
 
 ## How to run
 
