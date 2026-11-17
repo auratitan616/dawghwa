@@ -3,6 +3,8 @@
 
     <application
         android:allowBackup="true"
+        android:fullBackupContent="@xml/backup_rules"
+        android:dataExtractionRules="@xml/data_extraction_rules"
         android:icon="@mipmap/ic_launcher"
         android:label="@string/app_name"
         android:roundIcon="@mipmap/ic_launcher_round"
@@ -22,6 +24,19 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
 
+            <!-- Deep links: dawghwa://title/<source>/<id>, dawghwa://read/..., dawghwa://search?q=... -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="dawghwa" />
+            </intent-filter>
+            <!--
+              Verified https App Links need a domain you control serving
+              /.well-known/assetlinks.json. Add an intent-filter with
+              android:autoVerify="true" and android:host="<your domain>" once deployed.
+            -->
+
         </activity>
 
         <provider
@@ -38,4 +53,8 @@
     <!-- Permissions -->
 
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- @capacitor/network: online/offline and metered-connection awareness -->
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <!-- @capacitor/haptics -->
+    <uses-permission android:name="android.permission.VIBRATE" />
 </manifest>

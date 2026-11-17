@@ -18,7 +18,7 @@
     "eval:intel": "vitest run src/lib/intel",
     "android:sync": "npm run build && cap sync android",
     "android:build": "npm run android:sync && cd android && ./gradlew assembleDebug",
-    "icons": "node scripts/render-icons.mjs"
+    "icons": "node scripts/render-icons.mjs && node scripts/render-android-assets.mjs"
   },
   "engines": {
     "node": ">=22"
