@@ -21,7 +21,7 @@
     "icons": "node scripts/render-icons.mjs"
   },
   "engines": {
-    "node": ">=20"
+    "node": ">=22"
   },
   "dependencies": {
     "@capacitor/app": "^8.1.2",
