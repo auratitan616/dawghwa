@@ -181,7 +181,7 @@ export function Shell() {
           <footer className="site-foot">
             <span>
               Dawghwa does not host content. Titles, covers and chapters come
-              from their providers through the Dawghwa API.
+              from their providers through Dawghwa.
             </span>
             <a
               href="https://github.com/Titan717/dawghwa"
