@@ -86,10 +86,12 @@ for (const name of vps) {
         else if (a.startsWith("scroll=")) await page.mouse.wheel(0, Number(a.slice(7)));
         else if (a.startsWith("tap")) await page.mouse.click(vp.width / 2, vp.height / 2);
         else if (a.startsWith("wait=")) await page.waitForTimeout(Number(a.slice(5)));
+        else if (a.startsWith("key=")) await page.keyboard.press(a.slice(4));
+        else if (a === "end") await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
         await page.waitForTimeout(700);
       }
     }
-    const f = `/tmp/shots/${name}-${theme}-${(raw.replace(/[^\w]+/g, "_") || "home").slice(0, 60)}.png`;
+    const f = `/tmp/shots/${name}-${theme}-${(raw.replace(/[^\w]+/g, "_") || "home").slice(-70)}.png`;
     await page.screenshot({ path: f, fullPage: full });
     const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
     console.log(f, overflow > 1 ? `HORIZONTAL OVERFLOW ${overflow}px` : "");
