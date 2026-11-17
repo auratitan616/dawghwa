@@ -51,8 +51,10 @@ export function Shell() {
     return () => window.removeEventListener("keydown", key);
   }, [nav]);
   const inSearch = loc.pathname.startsWith("/search");
+  // Title pages bring their own header and sticky read button on phones (blueprint), so the shell steps aside there.
+  const immersive = loc.pathname.startsWith("/title/");
   return (
-    <div className="shell">
+    <div className="shell" data-own-chrome={immersive || undefined}>
       <a className="skip-link" href="#main">
         Skip to content
       </a>
