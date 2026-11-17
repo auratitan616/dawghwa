@@ -1,14 +1,15 @@
-/* Dawghwa design tokens — "Manga Culture + Playful Discovery".
+/* Dawghwa design tokens — blueprint structure (flat near-black stage, artwork first,
+   pill chips, one bright action colour) carrying the "Manga Culture + Playful Discovery"
+   identity (mascot, Archivo display, lime / vermilion / lavender).
    Dark-first charcoal ink; light theme is warm paper with deep ink (not an inversion).
-   Accents have jobs: vermilion = important action / active state, manga lime = rare
-   playful highlight (Surprise me, achievements), lavender = secondary emphasis and the
-   mascot's colour. Documented in docs/DESIGN_SYSTEM.md. */
+   Accents have jobs: lime = primary action and active state, vermilion = "new / hot"
+   badges and ranks, lavender = secondary emphasis and the mascot's colour. Documented in docs/DESIGN_SYSTEM.md. */
 :root {
   /* Archivo (variable weight + width) is the only display face: wide/black for headlines,
      condensed for chapter numbers and labels. Inter for UI and reading. */
   --font-display: "Archivo Variable", "Archivo", ui-sans-serif, system-ui, sans-serif;
   --font-body: "Inter Variable", "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
-  --display-stretch: 112%;
+  --display-stretch: 100%;
   --label-stretch: 68%;
 
   /* type scale (1.2 minor third, fluid at the top) */
@@ -35,8 +36,9 @@
 
   --radius-xs: 3px;
   --radius-sm: 6px;
+  --radius-card: 8px; /* covers and tiles, as in the blueprint */
   --radius-md: 10px;
-  --radius-lg: 16px;
+  --radius-lg: 14px; /* hero cards, sheets */
   --radius-full: 999px;
 
   /* panel language: ink-bordered frames with a hard offset shadow, used selectively */
@@ -62,78 +64,91 @@
 
   /* brand constants (theme independent) */
   --vermilion: #ff5948;
-  --lime: #c6ed63;
+  --lime: #b8f35a;
   --lavender: #b8a5f7;
   --on-bright: #151519; /* text on vermilion / lime / lavender fills: ≥ 5.9:1 */
 }
 
+/* Dark: near-black "ink" stage like the blueprint, flat surfaces, no frames.
+   Lime is the action colour (the blueprint's green CTA role, in Dawghwa's own hue). */
 :root,
 [data-theme="dark"] {
   color-scheme: dark;
-  --bg: #151519;
-  --bg-raised: #1a1a1f;
-  --surface: #202027;
-  --surface-2: #292931;
-  --surface-3: #33333c;
-  --line: rgb(244 239 230 / 0.09);
-  --line-strong: rgb(244 239 230 / 0.2);
-  --ink: #f4efe6; /* 15.9:1 on bg */
-  --ink-2: #cdc7bd; /* 10.8:1 */
-  --ink-3: #9a968f; /* 6.2:1 on bg, 5.5:1 on surface */
-  --ink-4: #6e6b67; /* decorative / disabled only */
-  --frame: #f4efe6; /* panel border colour */
-  --accent: var(--vermilion);
+  --bg: #0e0e10;
+  --bg-raised: #141417;
+  --surface: #1c1c20;
+  --surface-2: #26262b;
+  --surface-3: #313137;
+  --line: rgb(255 255 255 / 0.08);
+  --line-strong: rgb(255 255 255 / 0.16);
+  --ink: #f5f5f1; /* 18.3:1 on bg */
+  --ink-2: #c9c9c3; /* 12.1:1 */
+  --ink-3: #9b9b95; /* 7.0:1 on bg, 6.2:1 on surface */
+  --ink-4: #66666a; /* decorative / disabled only */
+  --frame: #f5f5f1;
+  --accent: var(--lime);
+  --accent-hover: #c8f77a;
   --accent-ink: var(--on-bright);
-  --accent-soft: rgb(255 89 72 / 0.15);
-  --accent-text: #ff7a6b; /* 7.2:1 on bg */
-  --lime-text: #c6ed63;
-  --lime-soft: rgb(198 237 99 / 0.14);
+  --accent-soft: rgb(184 243 90 / 0.14);
+  --accent-text: #b8f35a; /* 14.6:1 on bg */
+  --hot: var(--vermilion);
+  --hot-text: #ff7a6b; /* 7.4:1 on bg */
+  --lime-text: #b8f35a;
+  --lime-soft: rgb(184 243 90 / 0.14);
   --lavender-text: #c4b5fa;
   --lavender-soft: rgb(184 165 247 / 0.15);
   --good: #7fd69a;
   --warn: #f2c35b;
   --bad: #ff7a72;
-  --scrim: rgb(10 10 12 / 0.74);
-  --shadow: 0 1px 0 rgb(0 0 0 / 0.35), 0 8px 24px rgb(0 0 0 / 0.4);
-  --shadow-lg: 0 24px 64px rgb(0 0 0 / 0.55);
-  --hard-shadow: var(--panel-offset) var(--panel-offset) 0 #000;
-  --halftone: rgb(244 239 230 / 0.07);
-  --skeleton-a: #1e1e24;
-  --skeleton-b: #2a2a32;
+  --scrim: rgb(0 0 0 / 0.72);
+  --on-art: #ffffff; /* text placed over artwork (always behind a dark gradient) */
+  --art-fade: linear-gradient(180deg, rgb(0 0 0 / 0) 35%, rgb(0 0 0 / 0.55) 62%, rgb(0 0 0 / 0.92) 100%);
+  --shadow: 0 1px 0 rgb(0 0 0 / 0.4), 0 8px 24px rgb(0 0 0 / 0.45);
+  --shadow-lg: 0 24px 64px rgb(0 0 0 / 0.6);
+  --hard-shadow: none;
+  --halftone: rgb(255 255 255 / 0.06);
+  --skeleton-a: #19191d;
+  --skeleton-b: #25252a;
 }
 
+/* Light: warm paper, deep ink. Lime stays a fill; its text form is a deep olive. */
 [data-theme="light"] {
   color-scheme: light;
-  --bg: #f5f0e7;
-  --bg-raised: #faf6ef;
-  --surface: #eae3d7;
-  --surface-2: #e0d8ca;
-  --surface-3: #d4cbbb;
-  --line: rgb(29 26 34 / 0.12);
-  --line-strong: rgb(29 26 34 / 0.26);
-  --ink: #1d1a22; /* 15.1:1 on paper */
-  --ink-2: #45404a; /* 8.9:1 */
-  --ink-3: #66606a; /* 5.4:1 on paper, 4.8:1 on surface */
-  --ink-4: #9b948c;
-  --frame: #1d1a22;
-  --accent: var(--vermilion);
+  --bg: #f6f5f1;
+  --bg-raised: #ffffff;
+  --surface: #ecebe6;
+  --surface-2: #e2e1db;
+  --surface-3: #d6d5ce;
+  --line: rgb(17 17 20 / 0.1);
+  --line-strong: rgb(17 17 20 / 0.2);
+  --ink: #111114; /* 18.0:1 on paper */
+  --ink-2: #3d3d42; /* 10.4:1 */
+  --ink-3: #5f5f64; /* 6.1:1 on paper, 5.4:1 on surface */
+  --ink-4: #9a9a9e;
+  --frame: #111114;
+  --accent: var(--lime);
+  --accent-hover: #a6e744;
   --accent-ink: var(--on-bright);
-  --accent-soft: rgb(255 89 72 / 0.14);
-  --accent-text: #bf2f1f; /* 5.1:1 on paper; vermilion itself is only a fill here */
-  --lime-text: #4b6510;
-  --lime-soft: rgb(150 190 40 / 0.2);
+  --accent-soft: rgb(120 180 20 / 0.16);
+  --accent-text: #3b6300; /* 6.9:1 on paper */
+  --hot: var(--vermilion);
+  --hot-text: #b8281a; /* 5.6:1 on paper */
+  --lime-text: #3b6300;
+  --lime-soft: rgb(120 180 20 / 0.16);
   --lavender-text: #5d43c8;
   --lavender-soft: rgb(184 165 247 / 0.3);
   --good: #1d6a41;
   --warn: #8a5a00;
   --bad: #b3261e;
-  --scrim: rgb(29 26 34 / 0.5);
-  --shadow: 0 1px 0 rgb(40 30 20 / 0.06), 0 8px 24px rgb(40 30 20 / 0.1);
-  --shadow-lg: 0 24px 64px rgb(40 30 20 / 0.2);
-  --hard-shadow: var(--panel-offset) var(--panel-offset) 0 var(--frame);
-  --halftone: rgb(29 26 34 / 0.08);
-  --skeleton-a: #e7dfd2;
-  --skeleton-b: #f1ebe1;
+  --scrim: rgb(17 17 20 / 0.5);
+  --on-art: #ffffff;
+  --art-fade: linear-gradient(180deg, rgb(0 0 0 / 0) 35%, rgb(0 0 0 / 0.5) 62%, rgb(0 0 0 / 0.9) 100%);
+  --shadow: 0 1px 0 rgb(17 17 20 / 0.05), 0 8px 24px rgb(17 17 20 / 0.1);
+  --shadow-lg: 0 24px 64px rgb(17 17 20 / 0.18);
+  --hard-shadow: none;
+  --halftone: rgb(17 17 20 / 0.07);
+  --skeleton-a: #e6e5df;
+  --skeleton-b: #f1f0eb;
 }
 
 /* semantic aliases (prefer these in new code) */
@@ -150,6 +165,6 @@
   --color-success: var(--good);
   --color-warning: var(--warn);
   --color-error: var(--bad);
-  --color-focus: var(--lavender);
+  --color-focus: var(--accent-text);
   --color-disabled: var(--ink-4);
 }

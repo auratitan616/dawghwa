@@ -55,7 +55,7 @@
 .rd-progress > span {
   display: block;
   height: 100%;
-  background: var(--vermilion);
+  background: var(--accent);
   transform-origin: left;
   transition: transform var(--dur) var(--ease-out);
 }
@@ -90,7 +90,7 @@
 }
 .rd-slider {
   flex: 1;
-  accent-color: var(--vermilion);
+  accent-color: var(--accent);
   min-width: 0;
   height: 32px;
 }
@@ -305,8 +305,8 @@
   color: var(--ink-3);
 }
 .rd-ch[aria-current="true"] {
-  box-shadow: inset 3px 0 0 var(--vermilion);
-  background: color-mix(in srgb, var(--vermilion) 8%, transparent);
+  box-shadow: inset 3px 0 0 var(--accent);
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
   font-weight: 700;
 }
 .rd-ch svg {
