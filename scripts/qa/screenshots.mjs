@@ -1,5 +1,5 @@
 import { chromium } from "playwright";
-const base = "http://localhost:4173";
+const base = process.env.BASE || "http://localhost:4173";
 const [,, ...paths] = process.argv;
 const browser = await chromium.launch();
 for (const vp of [{ name: "m", width: 390, height: 844, mobile: true }, { name: "d", width: 1440, height: 900 }]) {

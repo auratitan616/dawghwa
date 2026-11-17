@@ -132,9 +132,15 @@ function CatalogueSection({ def, ctx, claims, order }: { def: SectionDef; ctx: R
 }
 
 function Featured({ ctx }: { ctx: RankContext }) {
-  const q = useBrowse({ order: "popular", limit: 30, createdWithinDays: 1095 });
-  const items = useMemo(() => rerankRow((q.data?.items ?? []).filter((t) => t.meta?.description && t.cover), ctx).slice(0, 6), [q.data, ctx]);
+  // most-followed series; prefer ones with a synopsis to show
+  const q = useBrowse({ order: "popular", limit: 30 });
+  const items = useMemo(() => {
+    const withCover = (q.data?.items ?? []).filter((t) => t.cover);
+    const described = withCover.filter((t) => t.meta?.description);
+    return rerankRow(described.length >= 3 ? described : withCover, ctx).slice(0, 6);
+  }, [q.data, ctx]);
   if (q.isError && !q.data) return <ErrorState error={q.error} retry={() => void q.refetch()} />;
+  if (q.data && !items.length) return null;
   if (!items.length)
     return (
       <div className="hero hero-loading" aria-busy="true" aria-label="Loading featured series">
@@ -317,8 +323,8 @@ export default function Home() {
         <button className="mood mood-lime" onClick={doSurprise}>
           <Dices size={17} /> Surprise me
         </button>
-        <Link className="mood" to="/search?q=hidden%20gems%20with%20fewer%20than%20100%20chapters">
-          <Sparkles size={16} /> Short hidden gems
+        <Link className="mood" to="/search?q=completed%20romance%20with%20fewer%20than%20100%20chapters">
+          <Sparkles size={16} /> Short completed romance
         </Link>
         <Link className="mood" to="/search?q=completed%20fantasy%20manhwa">
           <CheckCircle2 size={16} /> Completed fantasy

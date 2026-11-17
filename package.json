@@ -14,13 +14,14 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "e2e": "playwright test",
+    "e2e:install": "playwright install chromium",
     "eval:intel": "vitest run src/lib/intel",
-    "android:sync": "npm run build && cap sync android",
+    "android:sync": "node scripts/check-native-env.mjs && npm run build && cap sync android",
     "android:build": "npm run android:sync && cd android && ./gradlew assembleDebug",
-    "icons": "python3 scripts/brand-assets.py"
+    "icons": "python3 scripts/brand-assets.py && node scripts/render-android-assets.mjs"
   },
   "engines": {
-    "node": ">=20"
+    "node": ">=22"
   },
   "dependencies": {
     "@capacitor/app": "^8.1.2",

@@ -16,19 +16,24 @@ const KINDS: [MangaKind, string][] = [
   ["manhua", "Manhua"],
 ];
 const STATUS = ["ongoing", "completed", "hiatus", "cancelled"] as const;
-const DEMO = ["shounen", "seinen", "shoujo", "josei"] as const;
 const ORDERS: [BrowseOrder, string][] = [
   ["popular", "Most followed"],
   ["rating", "Top rated"],
   ["latest", "Recently updated"],
   ["new", "Newly added"],
-  ["year", "Release year"],
+  ["title", "Title A to Z"],
 ];
 const cap = (s: string) => s[0]!.toUpperCase() + s.slice(1);
 const TAG_GROUP_LABELS: Record<string, string> = { genre: "Genres", theme: "Themes", format: "Style & format tags", content: "Content tags" };
 const list = (p: URLSearchParams, k: string) => (p.get(k) ?? "").split(",").filter(Boolean);
 
-/** Discover: an editorial hub with no filters set, the filtered catalogue otherwise. */
+/**
+ * Catalogue browser over GET /api/catalog. Every control maps to a server-side
+ * catalogue filter: one format, one status, a release year, included tags and
+ * excluded tags. The catalogue has no demographic filter, so there is none here.
+ *
+ * With no filters set it shows the editorial hub instead.
+ */
 export default function Discover() {
   const [params] = useSearchParams();
   const hub = [...params.keys()].length === 0;
@@ -44,14 +49,15 @@ function Catalogue() {
   const ctx = useRankContext();
   const kinds = list(params, "kind") as MangaKind[];
   const status = list(params, "status") as BrowseQuery["status"] & string[];
-  const demo = list(params, "demo") as BrowseQuery["demographic"] & string[];
   const tags = list(params, "tag");
   const without = list(params, "without");
   const order = (params.get("order") as BrowseOrder) || "popular";
-  const fresh = Boolean(params.get("new"));
+  const THIS_YEAR = new Date().getFullYear();
+  const year = Number(params.get("year")) || undefined;
+  useHead({ title: "Discover manga, manhwa and manhua", path: "/discover", description: "Browse manga, manhwa and manhua by genre, theme, status and format." });
 
   const query: BrowseQuery = useMemo(
-    () => ({ kinds: kinds.length ? kinds : undefined, status: status.length ? status : undefined, demographic: demo.length ? demo : undefined, includedTags: tags.length ? tags : undefined, excludedTags: without.length ? without : undefined, order, createdWithinDays: fresh ? 365 : undefined }),
+    () => ({ kinds: kinds.length ? kinds : undefined, status: status.length ? status : undefined, includedTags: tags.length ? tags : undefined, excludedTags: without.length ? without : undefined, order, year }),
     [params], // eslint-disable-line react-hooks/exhaustive-deps
   );
   const q = useBrowseInfinite(query, 30);
@@ -61,14 +67,6 @@ function Catalogue() {
   }, [q.data, ctx.exclude]);
   const total = q.data?.pages[0]?.total;
 
-  const toggle = (k: string, v: string) => {
-    const cur = list(params, k);
-    const next = cur.includes(v) ? cur.filter((x) => x !== v) : [...cur, v];
-    const p = new URLSearchParams(params);
-    if (next.length) p.set(k, next.join(","));
-    else p.delete(k);
-    setParams(p, { replace: true });
-  };
   const setOne = (k: string, v?: string) => {
     const p = new URLSearchParams(params);
     if (v) p.set(k, v);
@@ -80,9 +78,12 @@ function Catalogue() {
     for (const t of vocab.data?.tags ?? []) if (t.group !== "content") g.set(t.group, [...(g.get(t.group) ?? []), t.name]);
     return [...g.entries()].map(([k, v]) => [k, v.sort()] as const);
   }, [vocab.data]);
-  const active = kinds.length + status.length + demo.length + tags.length + without.length + (fresh ? 1 : 0);
+  const active = kinds.length + status.length + tags.length + without.length + (year ? 1 : 0);
+  const drop = (k: string, v: string) => setOne(k, list(params, k).filter((x) => x !== v).join(",") || undefined);
+  // the catalogue filters one format and one status at a time
+  const pick = (k: string, v: string) => setOne(k, list(params, k).length === 1 && list(params, k)[0] === v ? undefined : v);
   const orderLabel = ORDERS.find(([o]) => o === order)?.[1];
-  const heading = active === 1 && tags.length === 1 ? tags[0]! : active === 1 && kinds.length === 1 ? cap(kinds[0]!) : active === 1 && status.length === 1 ? `${cap(status[0]!)} series` : active === 0 ? (order === "popular" ? "Whole catalogue" : orderLabel ?? "Catalogue") : "Filtered catalogue";
+  const heading = active === 1 && tags.length === 1 ? tags[0]! : active === 1 && kinds.length === 1 ? cap(kinds[0]!) : active === 1 && status.length === 1 ? `${cap(status[0]!)} series` : active === 1 && year ? `Published ${year}` : active === 0 ? (order === "popular" ? "Whole catalogue" : orderLabel ?? "Catalogue") : "Filtered catalogue";
 
   const tri = (name: string) => (tags.includes(name) ? "include" : without.includes(name) ? "exclude" : "off");
   const cycleTag = (name: string) => {
@@ -105,7 +106,7 @@ function Catalogue() {
         <legend className="eyebrow">Format</legend>
         <div className="chips">
           {KINDS.map(([k, l]) => (
-            <button key={k} className="chip" aria-pressed={kinds.includes(k)} onClick={() => toggle("kind", k)}>
+            <button key={k} className="chip" aria-pressed={kinds.includes(k)} onClick={() => pick("kind", k)}>
               {l}
             </button>
           ))}
@@ -115,23 +116,18 @@ function Catalogue() {
         <legend className="eyebrow">Status</legend>
         <div className="chips">
           {STATUS.map((s) => (
-            <button key={s} className="chip" aria-pressed={status.includes(s)} onClick={() => toggle("status", s)}>
+            <button key={s} className="chip" aria-pressed={status.includes(s)} onClick={() => pick("status", s)}>
               {cap(s)}
             </button>
           ))}
-          <button className="chip" aria-pressed={fresh} onClick={() => setOne("new", fresh ? undefined : "1")}>
-            Added this year
+          <button className="chip" aria-pressed={year === THIS_YEAR} onClick={() => setOne("year", year === THIS_YEAR ? undefined : String(THIS_YEAR))}>
+            Published {THIS_YEAR}
           </button>
-        </div>
-      </fieldset>
-      <fieldset>
-        <legend className="eyebrow">Demographic</legend>
-        <div className="chips">
-          {DEMO.map((s) => (
-            <button key={s} className="chip" aria-pressed={demo.includes(s)} onClick={() => toggle("demo", s)}>
-              {cap(s)}
+          {year && year !== THIS_YEAR ? (
+            <button className="chip" aria-pressed onClick={() => setOne("year", undefined)}>
+              Published {year}
             </button>
-          ))}
+          ) : null}
         </div>
       </fieldset>
       {vocab.isError && <ErrorState error={vocab.error} retry={() => void vocab.refetch()} compact />}
@@ -180,35 +176,30 @@ function Catalogue() {
       {active > 0 && (
         <div className="active-filters" aria-label="Active filters">
           {kinds.map((k) => (
-            <button key={k} className="chip is-on" onClick={() => toggle("kind", k)} aria-label={`Remove ${k}`}>
+            <button key={k} className="chip is-on" onClick={() => drop("kind", k)} aria-label={`Remove ${k}`}>
               {cap(k)} <X size={14} />
             </button>
           ))}
           {status.map((k) => (
-            <button key={k} className="chip is-on" onClick={() => toggle("status", k)} aria-label={`Remove ${k}`}>
-              {cap(k)} <X size={14} />
-            </button>
-          ))}
-          {demo.map((k) => (
-            <button key={k} className="chip is-on" onClick={() => toggle("demo", k)} aria-label={`Remove ${k}`}>
+            <button key={k} className="chip is-on" onClick={() => drop("status", k)} aria-label={`Remove ${k}`}>
               {cap(k)} <X size={14} />
             </button>
           ))}
           {tags.map((k) => (
-            <button key={k} className="chip is-on" onClick={() => toggle("tag", k)} aria-label={`Remove ${k}`}>
+            <button key={k} className="chip is-on" onClick={() => drop("tag", k)} aria-label={`Remove ${k}`}>
               {k} <X size={14} />
             </button>
           ))}
           {without.map((k) => (
-            <button key={k} className="chip chip-neg" aria-pressed="true" onClick={() => toggle("without", k)} aria-label={`Remove exclusion ${k}`}>
+            <button key={k} className="chip chip-neg" aria-pressed="true" onClick={() => drop("without", k)} aria-label={`Remove exclusion ${k}`}>
               Not {k} <X size={14} />
             </button>
           ))}
-          {fresh && (
-            <button className="chip is-on" onClick={() => setOne("new")} aria-label="Remove added this year">
-              Added this year <X size={14} />
+          {year ? (
+            <button className="chip is-on" onClick={() => setOne("year")} aria-label={`Remove published ${year}`}>
+              Published {year} <X size={14} />
             </button>
-          )}
+          ) : null}
           <button className="btn btn-ghost btn-sm" onClick={() => setParams(order !== "popular" ? { order } : { view: "all" }, { replace: true })}>
             Clear all
           </button>

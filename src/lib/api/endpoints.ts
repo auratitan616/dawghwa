@@ -1,10 +1,9 @@
 import { apiUrl, fetchOnce, parseNdjson, request } from "./client";
 import { ApiError, toApiError } from "./errors";
+import { browseCatalog, catalogTitle, catalogVocabulary } from "./catalog";
 import type {
   ApiIndex,
   BrowseQuery,
-  BrowseResponse,
-  BrowseVocabulary,
   ChaptersResponse,
   HealthEntry,
   MangaResponse,
@@ -35,20 +34,21 @@ export const api = {
     o: Opt = {},
   ) => request<ChaptersResponse>("/api/chapters", { body: b, signal: o.signal, timeoutMs: 40_000 }),
 
-  manga: (b: { url: string; source?: string } | { source: string; id: string }, o: Opt = {}) =>
+  manga: (b: { url: string; source?: string }, o: Opt = {}) =>
     request<MangaResponse>("/api/manga", { body: b, signal: o.signal, timeoutMs: 20_000 }),
 
   pages: (b: { source: string; chapterId: string; dataSaver?: boolean } | { url: string; dataSaver?: boolean }, o: Opt = {}) =>
     // page URLs expire (MangaDex@Home) so the request is never de-duplicated across screens for long
     request<PagesResponse>("/api/pages", { body: b, signal: o.signal, timeoutMs: 20_000 }),
 
-  browse: (q: BrowseQuery, o: Opt = {}) =>
-    request<BrowseResponse>("/api/browse", { body: q, signal: o.signal, timeoutMs: 20_000 }),
+  /** Catalogue browsing over GET /api/catalog (see ./catalog.ts for what is applied where). */
+  browse: (q: BrowseQuery, o: Opt = {}) => browseCatalog(q, o),
 
-  browseSources: (o: Opt = {}) => request<{ sources: { id: string; name: string }[] }>("/api/browse", { signal: o.signal }),
+  /** Filter vocabulary from GET /api/catalog/filters. */
+  vocabulary: (o: Opt = {}) => catalogVocabulary(o),
 
-  vocabulary: (source: string, o: Opt = {}) =>
-    request<BrowseVocabulary>(`/api/browse?source=${encodeURIComponent(source)}`, { signal: o.signal }),
+  /** Full title metadata from GET /api/titles/mangadex:{id}. */
+  title: (id: string, o: Opt = {}) => catalogTitle(id, o),
 
   health: (o: Opt = {}) =>
     request<{ sources: Record<string, HealthEntry>; summary?: Record<string, number>; stale?: boolean }>("/api/health", {

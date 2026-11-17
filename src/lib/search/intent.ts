@@ -254,7 +254,8 @@ export function parseIntent(raw: string, vocab?: Vocabulary): Intent {
     consume(re, () => {
       if (!i.demographic.includes(d)) {
         i.demographic.push(d);
-        i.chips.push({ id: `demo:${d}`, label, where: "server" });
+        // the catalogue has no demographic filter: judged on this device from list metadata
+        i.chips.push({ id: `demo:${d}`, label, where: "local" });
       }
     });
   for (const mood of MOODS)
@@ -289,6 +290,10 @@ export function parseIntent(raw: string, vocab?: Vocabulary): Intent {
       }
     });
 
+  // the catalogue takes one format and one status per request; several are filtered on this device
+  for (const [prefix, n] of [["kind:", i.kinds.length], ["status:", i.status.length]] as const)
+    if (n > 1) for (const c of i.chips) if (c.id.startsWith(prefix)) c.where = "local";
+
   const leftover = s
     .replace(NEG, " ")
     .replace(/[^\p{L}\p{N}' -]+/gu, " ")
@@ -305,7 +310,6 @@ export function toBrowseQuery(i: Intent): BrowseQuery {
   if (i.text) q.query = i.text;
   if (i.kinds.length) q.kinds = i.kinds;
   if (i.status.length) q.status = i.status;
-  if (i.demographic.length) q.demographic = i.demographic;
   if (i.includeTags.length) q.includedTags = i.includeTags;
   if (i.excludeTags.length) q.excludedTags = i.excludeTags;
   if (i.year) q.year = i.year;
@@ -313,5 +317,5 @@ export function toBrowseQuery(i: Intent): BrowseQuery {
 }
 
 export function hasLocalFilters(i: Intent): boolean {
-  return Boolean(i.includeThemes.length || i.excludeThemes.length || i.anyTags.length || i.maxChapters || i.minChapters || i.yearMin || i.yearMax || i.hiddenGems);
+  return Boolean(i.demographic.length || i.kinds.length > 1 || i.status.length > 1 || i.includeThemes.length || i.excludeThemes.length || i.anyTags.length || i.maxChapters || i.minChapters || i.yearMin || i.yearMax || i.hiddenGems);
 }
