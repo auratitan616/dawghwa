@@ -54,7 +54,7 @@ test("title page loads and offers a real action", async ({ page }) => {
   await expect(first).toBeVisible({ timeout: 20_000 });
   await first.click();
   await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
-  await expect(page.getByRole("button", { name: /Add to library|Library:/ })).toBeVisible();
+  await expect(page.getByRole("button", { name: /Save to library|In library:/ })).toBeVisible();
 });
 
 test("favourite persists across reloads", async ({ page }) => {
@@ -64,10 +64,11 @@ test("favourite persists across reloads", async ({ page }) => {
   const first = page.locator("a[href^='/title/']").first();
   await expect(first).toBeVisible({ timeout: 20_000 });
   await first.click();
-  await page.getByRole("button", { name: "Add to favourites" }).click();
-  await expect(page.getByRole("button", { name: "Remove from favourites" })).toBeVisible();
+  const fav = page.getByRole("button", { name: /^Favourite/ });
+  await fav.click();
+  await expect(fav).toHaveAttribute("aria-pressed", "true");
   await page.reload();
-  await expect(page.getByRole("button", { name: "Remove from favourites" })).toBeVisible();
+  await expect(page.getByRole("button", { name: /^Favourite/ })).toHaveAttribute("aria-pressed", "true", { timeout: 20_000 });
 });
 
 test("offline: navigation keeps working and failures say offline, not 'updated'", async ({ page, context }) => {

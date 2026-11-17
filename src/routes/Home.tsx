@@ -286,7 +286,6 @@ function SomethingDifferent({ ctx, pool }: { ctx: RankContext; pool: Title[] }) 
 
 export default function Home() {
   const profile = useUser((s) => s.profile);
-  const resuming = useUser((s) => continueList(s).length > 0);
   const ctx = useRankContext();
   const pickCtx = useRankContext({ excludeLibrary: true });
   const pool = usePools(pickCtx);
@@ -317,7 +316,7 @@ export default function Home() {
   };
   return (
     <div className="page home">
-      <h1 className="sr-only">{resuming ? "Home: continue reading or find your next story" : "Home: find your next story"}</h1>
+      <h1 className="sr-only">Dawghwa home</h1>
       <Featured ctx={ctx} />
       <nav className="mood-strip" aria-label="Quick picks">
         <button className="mood mood-lime" onClick={doSurprise}>
