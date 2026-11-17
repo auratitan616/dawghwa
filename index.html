@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content" />
+    <title>Dawghwa</title>
+    <meta name="description" content="Find your next manhwa, manga or manhua. Dawghwa learns your taste on your device and reads chapters where the source allows it." />
+    <meta name="theme-color" content="#0e0d0c" media="(prefers-color-scheme: dark)" />
+    <meta name="theme-color" content="#f6f2ea" media="(prefers-color-scheme: light)" />
+    <meta name="color-scheme" content="dark light" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta property="og:site_name" content="Dawghwa" />
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="Dawghwa" />
+    <meta property="og:image" content="/og.png" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <link rel="icon" href="/icons/mark.svg" type="image/svg+xml" />
+    <link rel="icon" href="/icons/favicon-64.png" sizes="64x64" type="image/png" />
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+    <link rel="preconnect" href="https://uploads.mangadex.org" crossorigin />
+    <script>
+      // Apply the saved theme before first paint (no flash). Mirrors lib/settings.ts.
+      (function () {
+        try {
+          var s = JSON.parse(localStorage.getItem("dawghwa:settings") || "{}");
+          var t = s.theme === "light" || s.theme === "dark" ? s.theme : matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark";
+          document.documentElement.dataset.theme = t;
+        } catch (e) {}
+      })();
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <noscript>Dawghwa needs JavaScript to run.</noscript>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

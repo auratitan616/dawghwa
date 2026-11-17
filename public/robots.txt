@@ -1,0 +1,12 @@
+# Private, per-device screens are not indexed.
+User-agent: *
+Allow: /
+Disallow: /read/
+Disallow: /library
+Disallow: /history
+Disallow: /profile
+Disallow: /welcome
+Disallow: /search
+Disallow: /api/
+
+Sitemap: /sitemap.xml
