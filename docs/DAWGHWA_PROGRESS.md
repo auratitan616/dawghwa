@@ -43,6 +43,19 @@ Round 1 scored 7.6 (not accepted). Fixes:
 - M11: the hero CTA says "View series" when a title has no readable chapters. M12: synopses render as plain text (markdown stripped), and the About sheet shows Status and does not clip. M13: long recent searches ellipsize. M14: the title error and loading states keep a header with Back and Home, the reader error has padding, and the empty bottom bar is hidden. M8: "Search all sources" is hidden when the API is unreachable.
 - P11: no "Understood" chip for exact title matches. P12: icons on the step-3 chips. P13: 24px hero dots. P14: "Latest ch. N" when it differs from the available count. P15: Undo on hero Save. P16: failing home shelves collapse into one banner with a single Retry. Broken hero art falls back to the brand gradient.
 
+PR #4 merged (ffcabd0). Production served the new bundles (checked for the `dawghwa.pos.` and "View series" strings in the deployed chunks). Smoke test passed on both viewports; every failed request was to `uploads.mangadex.org`, which this sandbox cannot reach.
+
+## Milestone: critic round 2 fixes (`fix/critic-round2`)
+
+Round 2 scored 8.86 (all gate categories ≥ 9, no criticals). P12 and P16 were already in code but missing from the preview build the critic saw. Fixes:
+- P16: if the hero or all shelves fail, home shows one banner whose Retry refetches every failed query. The category shelf and the end card step aside.
+- N1: plain network-error copy. The search error state hides the sort select and the count label.
+- N2: GETs retry a plain 5xx twice with backoff (400ms, then 800ms). Writes still retry once at most.
+- N4: the reader subtitle has no leading separator and shows "via MangaDex"; the reader error is padded below the floating header. N5: 44px Profile footer link. N7: intent chips scroll on phones.
+- N6 not done: the API returns no rating or follower statistics for MangaDex titles (checked `/api/titles/mangadex:{id}` and `/api/catalog`), so the About sheet shows only the stats it has.
+- N3 not done: the catalogue has no readability signal, and probing chapters for every hero candidate would add 6 or more upstream calls to the LCP path. The hero CTA honestly says "View series" for those titles.
+- The e2e reader test skips with a reason when MangaDex's circuit is open upstream (503 SOURCE_CIRCUIT_OPEN), instead of crashing.
+
 ### Next
 
-- Critic round 2, then iterate until acceptance.
+- Critic round 3.

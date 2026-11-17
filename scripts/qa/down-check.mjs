@@ -1,0 +1,22 @@
+// QA: home with the API down (every /api call 503) and onboarding step 3 icons.
+import { chromium } from "playwright";
+const base = process.env.BASE || "http://localhost:4173";
+const b = await chromium.launch();
+const ctx = await b.newContext({ serviceWorkers: "block", viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
+const p = await ctx.newPage();
+await p.goto(base + "/welcome");
+await p.getByRole("button", { name: /Next/ }).waitFor();
+await p.locator(".onboard-chip").first().click();
+await p.getByRole("button", { name: /Next/ }).click();
+await p.getByRole("button", { name: /Next/ }).click();
+await p.waitForTimeout(500);
+const icons = await p.locator(".onboard-chip").evaluateAll((els) => els.map((e) => [e.textContent.trim(), !!e.querySelector("svg")]));
+await p.screenshot({ path: "/tmp/down-onboard3.png" });
+await p.route("**/api/**", (r) => r.fulfill({ status: 503, contentType: "application/json", body: JSON.stringify({ error: "down", code: "SOURCE_UNAVAILABLE" }) }));
+await p.getByRole("button", { name: "Skip" }).click();
+await p.waitForTimeout(9000);
+const errs = await p.locator(".state, [role=alert]").count();
+const retry = await p.getByRole("button", { name: /Retry|Try again/ }).count();
+await p.screenshot({ path: "/tmp/down-home.png", fullPage: true });
+console.log(JSON.stringify({ icons, errs, retry }));
+await b.close();

@@ -150,16 +150,28 @@ function CatalogueSection({ def, ctx, claims, order }: { def: SectionDef; ctx: R
   );
 }
 
-function Featured({ ctx }: { ctx: RankContext }) {
+function Featured({ ctx, claims }: { ctx: RankContext; claims: Claims }) {
   // most-followed series; prefer ones with a synopsis to show
   const q = useBrowse({ order: "popular", limit: 30 });
+  const qc = useQueryClient();
+  const failedNow = q.isError && !q.data;
+  // the hero takes slot -1 in the failure registry, so when it fails every shelf below steps aside
+  useEffect(() => {
+    claims.fail(-1, failedNow);
+    return () => claims.fail(-1, false);
+  }, [claims, failedNow]);
   const items = useMemo(() => {
     // The hero is full-bleed key art, so it never features titles the provider marks suggestive or adult.
     const withCover = (q.data?.items ?? []).filter((t) => t.cover && !isMature(t));
     const described = withCover.filter((t) => t.meta?.description);
     return rerankRow(described.length >= 3 ? described : withCover, ctx).slice(0, 6);
   }, [q.data, ctx]);
-  if (q.isError && !q.data) return <ErrorState error={q.error} retry={() => void q.refetch()} />;
+  if (failedNow)
+    return (
+      <div className="home-error">
+        <ErrorState error={q.error} retry={() => void qc.refetchQueries({ type: "active", predicate: (x) => x.state.status === "error" })} />
+      </div>
+    );
   if (q.data && !items.length) return null;
   if (!items.length)
     return (
@@ -314,6 +326,8 @@ export default function Home() {
   const [seed, setSeed] = useState(0);
   const [shownCount, setShownCount] = useState(8);
   const claims = useMemo(() => createClaims(), [seed]); // eslint-disable-line react-hooks/exhaustive-deps
+  useSyncExternalStore(claims.subscribe, claims.version, claims.version);
+  const homeDown = claims.failed.size > 0;
   const sections = useMemo(() => orderSections(CATALOGUE_SECTIONS, ctx.state, ctx.prefs), [ctx.state, ctx.prefs]);
   const more = useRef<HTMLDivElement>(null);
   const recentSurprises = useRef<string[]>([]);
@@ -337,7 +351,7 @@ export default function Home() {
   return (
     <div className="page home">
       <h1 className="sr-only">Dawghwa home</h1>
-      <Featured ctx={ctx} />
+      <Featured ctx={ctx} claims={claims} />
       <nav className="mood-strip" aria-label="Quick picks">
         <button className="mood mood-lime" onClick={doSurprise}>
           <Dices size={17} /> Surprise me
@@ -364,7 +378,7 @@ export default function Home() {
       </nav>
       <div className="feed">
         <ContinueReading />
-        <CategoryShelf ctx={ctx} preferred={ctx.prefs?.genres} />
+        <CategoryShelf ctx={ctx} preferred={ctx.prefs?.genres} quiet={homeDown} />
         <PickedForYou ctx={pickCtx} pool={pool.items} seed={seed} />
         <BecauseYouRead ctx={pickCtx} />
         {sections.slice(0, shownCount).map((d, i) => (
@@ -380,7 +394,7 @@ export default function Home() {
           </button>
         </div>
       )}
-      {shownCount >= sections.length && (
+      {shownCount >= sections.length && !homeDown && (
         <div className="feed-end">
           <MascotSays variant="head" size={72}>
             That's the whole issue. Lost in another world? <Link to="/discover">Discover</Link> has every shelf.

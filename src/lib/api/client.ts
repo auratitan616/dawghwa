@@ -194,8 +194,9 @@ async function run<T>(url: string, opts: RequestOptions, signal: AbortSignal): P
     } catch (raw) {
       const err = toApiError(raw);
       recordOutcome(false, err);
-      // A plain 5xx gets one retry at most: a down service shouldn't cause a storm of requests.
-      const cap = err.kind === "http" && err.status >= 500 && err.retryAfterMs === undefined ? Math.min(retries, 1) : retries;
+      // A plain 5xx: GETs retry twice with backoff (400ms, 800ms) to ride out a cold or flaky upstream;
+      // writes retry once at most so a down service never gets a storm of requests.
+      const cap = err.kind === "http" && err.status >= 500 && err.retryAfterMs === undefined ? Math.min(retries, method === "GET" ? 2 : 1) : retries;
       if (err.kind === "aborted" || attempt >= cap || !err.retryable || err.kind === "offline") throw err;
       await sleep(backoffMs(attempt, err.retryAfterMs), signal);
     }
