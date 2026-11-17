@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
-import { ArrowLeft, ChevronLeft, ChevronRight, ExternalLink, RotateCw, Settings2 } from "lucide-react";
+import { ArrowLeft, Check, ChevronLeft, ChevronRight, ExternalLink, ListOrdered, RotateCw, Settings2 } from "lucide-react";
+import { Mascot } from "@/components/Mascot";
+import { ChapterNo } from "@/components/Editorial";
 import { Sheet } from "@/components/Layer";
 import { ErrorState, errorText } from "@/components/States";
 import { useChapters, usePages, useSources, useTitle } from "@/lib/query";
@@ -95,6 +97,10 @@ export default function Reader() {
   const [page, setPage] = useState(startPage);
   const [controls, setControls] = useState(true);
   const [panel, setPanel] = useState(false);
+  const [chList, setChList] = useState(false);
+  useEffect(() => {
+    if (chList) requestAnimationFrame(() => document.querySelector('.rd-ch[aria-current="true"]')?.scrollIntoView({ block: "center" }));
+  }, [chList]);
   const [ratios, setRatios] = useState<Record<number, number>>({});
   const [failures, setFailures] = useState(0);
   const [reachedEnd, setReachedEnd] = useState(false);
@@ -225,7 +231,7 @@ export default function Reader() {
   // keyboard
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (panel || e.target instanceof HTMLInputElement || e.target instanceof HTMLSelectElement) return;
+      if (panel || chList || e.target instanceof HTMLInputElement || e.target instanceof HTMLSelectElement) return;
       const fwd = rtl ? "ArrowLeft" : "ArrowRight";
       const back = rtl ? "ArrowRight" : "ArrowLeft";
       if (e.key === fwd || (mode !== "vertical" && (e.key === " " || e.key === "PageDown"))) {
@@ -242,18 +248,19 @@ export default function Reader() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [rtl, mode, step, goChapter, next, prev, panel]);
+  }, [rtl, mode, step, goChapter, next, prev, panel, chList]);
 
   // Android back / Escape: close panel, then leave to the title page
   useEffect(
     () =>
       onBack(() => {
         if (panel) return (setPanel(false), true);
+        if (chList) return (setChList(false), true);
         if (title) nav(titlePath(title), { replace: true });
         else nav(-1);
         return true;
       }),
-    [panel, title, nav],
+    [panel, chList, title, nav],
   );
 
   // swipe for paged modes
@@ -335,14 +342,19 @@ export default function Reader() {
 
   const endPanel = (
     <div className="rd-end" aria-live="polite">
-      <p className="eyebrow">End of chapter {chapter?.number ?? ""}</p>
+      <Mascot variant="head" size={72} className="rd-end-mascot" />
+      <p className="rd-end-kicker">
+        End of <ChapterNo n={chapter?.number} />
+      </p>
       {next ? (
         <>
+          <h2 className="rd-end-title">One more chapter?</h2>
           <button className="btn btn-primary btn-lg" onClick={() => goChapter(next)}>
-            Next: chapter {next.number} <ChevronRight size={18} />
+            Chapter {next.number}
+            {next.title ? `: ${next.title}` : ""} <ChevronRight size={18} />
           </button>
           {countdown !== null && countdown > 0 && (
-            <p className="muted">
+            <p className="rd-countdown">
               Continuing in {countdown}s ·{" "}
               <button className="link-btn" onClick={() => setCountdown(null)}>
                 Stay here
@@ -351,9 +363,12 @@ export default function Reader() {
           )}
         </>
       ) : list.length ? (
-        <p>You're caught up. This is the latest chapter on {sourceName}.</p>
+        <>
+          <h2 className="rd-end-title">You're caught up</h2>
+          <p className="rd-end-note">This is the latest chapter on {sourceName}. New chapters show up on Home when they're released.</p>
+        </>
       ) : null}
-      <Link className="btn" to={backTo}>
+      <Link className="btn btn-ghost" to={backTo}>
         Back to title
       </Link>
     </div>
@@ -397,8 +412,13 @@ export default function Reader() {
 
   const pageLabel = count ? (mode === "double" ? `${(spreads[spreadIdx] ?? []).map((i) => i + 1).join("-")} / ${count}` : `${Math.min(page, count - 1) + 1} / ${count}`) : "";
 
+  const fraction = count ? (reachedEnd ? 1 : (Math.min(page, count - 1) + 1) / count) : 0;
+
   return (
     <div className={`reader reader-${mode}`} data-controls={controls || undefined} onClick={onTap} onPointerDown={onPointerDown} onPointerUp={onPointerUp}>
+      <div className="rd-progress" aria-hidden="true">
+        <span style={{ transform: `scaleX(${fraction})` }} />
+      </div>
       <header className="rd-top" aria-hidden={!controls} inert={!controls || undefined}>
         <Link className="icon-btn" to={backTo} replace aria-label="Back to title">
           <ArrowLeft size={20} />
@@ -410,7 +430,12 @@ export default function Reader() {
             {chapter?.group ? ` · ${chapter.group.name}` : ""} · via {sourceName}
           </span>
         </div>
-        <button className="icon-btn" aria-label="Reader settings" onClick={() => setPanel(true)}>
+        {list.length > 1 && (
+          <button className="icon-btn" aria-label="Chapters" aria-haspopup="dialog" onClick={() => setChList(true)}>
+            <ListOrdered size={20} />
+          </button>
+        )}
+        <button className="icon-btn" aria-label="Reader settings" aria-haspopup="dialog" onClick={() => setPanel(true)}>
           <Settings2 size={20} />
         </button>
       </header>
@@ -458,6 +483,22 @@ export default function Reader() {
         </button>
       </footer>
 
+      <Sheet open={chList} onClose={() => setChList(false)} title="Chapters">
+        <ol className="rd-chlist" onClick={(e) => e.stopPropagation()}>
+          {[...list].reverse().map((c) => {
+            const read = Boolean(prog?.read[c.id]);
+            return (
+              <li key={c.id}>
+                <button className="rd-ch" aria-current={c.id === chapterId ? "true" : undefined} data-read={read || undefined} onClick={() => (setChList(false), goChapter(c))}>
+                  <ChapterNo n={c.number} />
+                  <span className="rd-ch-title">{c.title || `Chapter ${c.number}`}</span>
+                  {read && <Check size={16} aria-label="Read" />}
+                </button>
+              </li>
+            );
+          })}
+        </ol>
+      </Sheet>
       <Sheet open={panel} onClose={() => setPanel(false)} title="Reader settings">
         <div className="stack" onClick={(e) => e.stopPropagation()}>
           <div className="settings-row">

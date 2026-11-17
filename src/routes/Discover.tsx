@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
-import { useSearchParams } from "react-router-dom";
-import { SlidersHorizontal, X } from "lucide-react";
+import { Link, useSearchParams } from "react-router-dom";
+import { ArrowLeft, SlidersHorizontal, X } from "lucide-react";
+import { DiscoverHub } from "./DiscoverHub";
 import { TitleGrid } from "@/components/Grid";
 import { EmptyState, ErrorState, GridSkeleton } from "@/components/States";
 import { Sheet } from "@/components/Layer";
@@ -30,8 +31,18 @@ const list = (p: URLSearchParams, k: string) => (p.get(k) ?? "").split(",").filt
  * Catalogue browser over GET /api/catalog. Every control maps to a server-side
  * catalogue filter: one format, one status, a release year, included tags and
  * excluded tags. The catalogue has no demographic filter, so there is none here.
+ *
+ * With no filters set it shows the editorial hub instead.
  */
 export default function Discover() {
+  const [params] = useSearchParams();
+  const hub = [...params.keys()].length === 0;
+  useHead({ title: "Discover manga, manhwa and manhua", path: "/discover", description: "Browse manga, manhwa and manhua by genre, theme, status and format." });
+  return hub ? <DiscoverHub /> : <Catalogue />;
+}
+
+/** Catalogue browser. Every filter maps 1:1 to a server-side /api/browse filter. */
+function Catalogue() {
   const [params, setParams] = useSearchParams();
   const [open, setOpen] = useState(false);
   const vocab = useVocabulary();
@@ -68,8 +79,11 @@ export default function Discover() {
     return [...g.entries()].map(([k, v]) => [k, v.sort()] as const);
   }, [vocab.data]);
   const active = kinds.length + status.length + tags.length + without.length + (year ? 1 : 0);
+  const drop = (k: string, v: string) => setOne(k, list(params, k).filter((x) => x !== v).join(",") || undefined);
   // the catalogue filters one format and one status at a time
   const pick = (k: string, v: string) => setOne(k, list(params, k).length === 1 && list(params, k)[0] === v ? undefined : v);
+  const orderLabel = ORDERS.find(([o]) => o === order)?.[1];
+  const heading = active === 1 && tags.length === 1 ? tags[0]! : active === 1 && kinds.length === 1 ? cap(kinds[0]!) : active === 1 && status.length === 1 ? `${cap(status[0]!)} series` : active === 1 && year ? `Published ${year}` : active === 0 ? (order === "popular" ? "Whole catalogue" : orderLabel ?? "Catalogue") : "Filtered catalogue";
 
   const tri = (name: string) => (tags.includes(name) ? "include" : without.includes(name) ? "exclude" : "off");
   const cycleTag = (name: string) => {
@@ -138,29 +152,59 @@ export default function Discover() {
 
   return (
     <div className="page discover">
+      <Link to="/discover" className="back-link">
+        <ArrowLeft size={16} /> Discover
+      </Link>
       <header className="page-head">
         <div>
-          <h1>Discover</h1>
+          <h1>{heading}</h1>
           <p className="muted">{total !== undefined ? `${total.toLocaleString()} titles match` : "Browse the MangaDex catalogue"}</p>
         </div>
         <div className="cluster">
           <select className="select" style={{ width: "auto" }} aria-label="Sort by" value={order} onChange={(e) => setOne("order", e.target.value === "popular" ? undefined : e.target.value)}>
-              {ORDERS.map(([o, l]) => (
-                <option key={o} value={o}>
-                  {l}
-                </option>
-              ))}
-            </select>
+            {ORDERS.map(([o, l]) => (
+              <option key={o} value={o}>
+                {l}
+              </option>
+            ))}
+          </select>
           <button className="btn discover-filter-btn" onClick={() => setOpen(true)} aria-label={`Filters${active ? `, ${active} active` : ""}`}>
             <SlidersHorizontal size={16} /> Filters{active ? ` (${active})` : ""}
           </button>
-          {active > 0 && (
-            <button className="btn btn-ghost" onClick={() => setParams(order !== "popular" ? { order } : {}, { replace: true })}>
-              <X size={16} /> Clear
-            </button>
-          )}
         </div>
       </header>
+      {active > 0 && (
+        <div className="active-filters" aria-label="Active filters">
+          {kinds.map((k) => (
+            <button key={k} className="chip is-on" onClick={() => drop("kind", k)} aria-label={`Remove ${k}`}>
+              {cap(k)} <X size={14} />
+            </button>
+          ))}
+          {status.map((k) => (
+            <button key={k} className="chip is-on" onClick={() => drop("status", k)} aria-label={`Remove ${k}`}>
+              {cap(k)} <X size={14} />
+            </button>
+          ))}
+          {tags.map((k) => (
+            <button key={k} className="chip is-on" onClick={() => drop("tag", k)} aria-label={`Remove ${k}`}>
+              {k} <X size={14} />
+            </button>
+          ))}
+          {without.map((k) => (
+            <button key={k} className="chip chip-neg" aria-pressed="true" onClick={() => drop("without", k)} aria-label={`Remove exclusion ${k}`}>
+              Not {k} <X size={14} />
+            </button>
+          ))}
+          {year ? (
+            <button className="chip is-on" onClick={() => setOne("year")} aria-label={`Remove published ${year}`}>
+              Published {year} <X size={14} />
+            </button>
+          ) : null}
+          <button className="btn btn-ghost btn-sm" onClick={() => setParams(order !== "popular" ? { order } : { view: "all" }, { replace: true })}>
+            Clear all
+          </button>
+        </div>
+      )}
       <div className="discover-layout">
         <aside className="discover-filters" aria-label="Filters">
           {filters}
@@ -171,7 +215,7 @@ export default function Discover() {
           ) : q.isLoading ? (
             <GridSkeleton />
           ) : !items.length ? (
-            <EmptyState title="No titles match these filters" action={<button className="btn" onClick={() => setParams({}, { replace: true })}>Clear filters</button>}>
+            <EmptyState title="No titles match these filters" action={<button className="btn" onClick={() => setParams({ view: "all" }, { replace: true })}>Clear filters</button>}>
               Try removing a filter. Tag combinations must all match.
             </EmptyState>
           ) : (

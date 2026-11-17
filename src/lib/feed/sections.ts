@@ -26,7 +26,7 @@ export interface SectionDef {
   priority: number;
   min?: number;
   /** Larger cards / editorial layout. */
-  layout?: "row" | "wide" | "ranked";
+  layout?: "row" | "wide" | "ranked" | "spread";
   /** Link target for "See all". */
   more?: string;
 }
@@ -42,14 +42,16 @@ export const CATALOGUE_SECTIONS: SectionDef[] = [
   { id: "popular-manhwa", title: "Popular manhwa", subtitle: "Korean series, by followers", query: kindQ(["manhwa"]), focus: ["k:manhwa"], priority: 80, more: "/discover?kind=manhwa" },
   { id: "popular-manga", title: "Popular manga", subtitle: "Japanese series, by followers", query: kindQ(["manga"]), focus: ["k:manga"], priority: 79, more: "/discover?kind=manga" },
   { id: "popular-manhua", title: "Popular manhua", subtitle: "Chinese series, by followers", query: kindQ(["manhua"]), focus: ["k:manhua"], priority: 60, more: "/discover?kind=manhua" },
-  { id: "completed", title: "Finished series", subtitle: "Completed, most recently updated first", query: { status: ["completed"], order: "latest", limit: 40 }, focus: ["st:completed"], priority: 70, more: "/discover?status=completed&order=latest" },
+  { id: "completed", title: "Finished series", subtitle: "Completed, most recently updated first", query: { status: ["completed"], order: "latest", limit: 40 }, focus: ["st:completed"], priority: 70, layout: "spread", more: "/discover?status=completed&order=latest" },
   { id: "top-rated", title: "Highest rated", subtitle: "By reader rating on MangaDex", query: { order: "rating", limit: 40 }, focus: [], priority: 65, layout: "ranked", more: "/discover?order=rating" },
-  { id: "revenge", title: "Revenge stories", subtitle: "Synopsis mentions revenge or vengeance", query: kindQ(["manhwa"], { includedTags: ["Action"], limit: 100 }), filter: themeFilter("revenge"), focus: ["s:revenge"], priority: 50, more: "/search?q=revenge%20manhwa" },
-  { id: "regression", title: "Second chances", subtitle: "Regression and time-travel stories", query: { includedTags: ["Fantasy"], order: "popular", limit: 100 }, filter: themeFilter("regression"), focus: ["s:regression", "t:time travel"], priority: 49, more: "/search?q=regression" },
+  { id: "revenge", title: "Revenge stories", subtitle: "Synopsis mentions revenge or vengeance", query: kindQ(["manhwa"], { includedTags: ["Action"], limit: 100 }), filter: themeFilter("revenge"), focus: ["s:revenge"], priority: 50, layout: "wide", more: "/search?q=revenge%20manhwa" },
+  { id: "regression", title: "Second chances", subtitle: "Regression and time-travel stories", query: { includedTags: ["Fantasy"], order: "popular", limit: 100 }, filter: themeFilter("regression"), focus: ["s:regression", "t:time travel"], priority: 49, layout: "wide", more: "/search?q=regression" },
   { id: "overpowered", title: "Overpowered leads", subtitle: "Synopsis calls the lead the strongest, overpowered or invincible", query: { includedTags: ["Action"], order: "popular", limit: 100 }, filter: themeFilter("overpowered"), focus: ["s:overpowered"], priority: 48, more: "/search?q=overpowered%20mc" },
-  { id: "dark-fantasy", title: "Dark fantasy", subtitle: "Fantasy tagged psychological, tragedy, horror, gore or thriller", query: { includedTags: ["Fantasy"], order: "popular", limit: 100 }, filter: (t) => (t.meta?.tags ?? []).some((x) => DARK.has(x.toLowerCase())), focus: ["g:fantasy", "g:tragedy", "g:psychological"], priority: 47, more: "/search?q=dark%20fantasy" },
+  { id: "dark-fantasy", title: "Dark fantasy", subtitle: "Fantasy tagged psychological, tragedy, horror, gore or thriller", query: { includedTags: ["Fantasy"], order: "popular", limit: 100 }, filter: (t) => (t.meta?.tags ?? []).some((x) => DARK.has(x.toLowerCase())), focus: ["g:fantasy", "g:tragedy", "g:psychological"], priority: 47, layout: "spread", more: "/search?q=dark%20fantasy" },
   { id: "cultivation", title: "Cultivation and murim", subtitle: "Martial-arts series whose synopsis mentions cultivation, sects or murim", query: { includedTags: ["Martial Arts"], order: "popular", limit: 100 }, filter: themeFilter("cultivation"), focus: ["s:cultivation", "t:martial arts", "g:wuxia"], priority: 46, more: "/search?q=cultivation" },
-  { id: "dungeon", title: "Dungeons and towers", subtitle: "Synopsis mentions dungeons, towers, gates or hunters", query: { includedTags: ["Action", "Fantasy"], order: "popular", limit: 100 }, filter: themeFilter("dungeon"), focus: ["s:dungeon"], priority: 45, more: "/search?q=dungeon" },
+  { id: "dungeon", title: "Dungeons and towers", subtitle: "Synopsis mentions dungeons, towers, gates or hunters", query: { includedTags: ["Action", "Fantasy"], order: "popular", limit: 100 }, filter: themeFilter("dungeon"), focus: ["s:dungeon"], priority: 45, layout: "wide", more: "/search?q=dungeon" },
+  { id: "martial-arts", title: "Martial arts", subtitle: "Tagged Martial Arts, by followers", query: { includedTags: ["Martial Arts"], order: "popular", limit: 40 }, focus: ["t:martial arts", "g:action"], priority: 43, more: "/discover?tag=Martial%20Arts" },
+  { id: "psychological", title: "Mind games", subtitle: "Tagged Psychological, by followers", query: { includedTags: ["Psychological"], order: "popular", limit: 40 }, focus: ["g:psychological"], priority: 42, layout: "wide", more: "/discover?tag=Psychological" },
   { id: "romance", title: "Romance", subtitle: "Popular romance across formats", query: { includedTags: ["Romance"], order: "popular", limit: 40 }, focus: ["g:romance"], priority: 44, more: "/discover?tag=Romance" },
 ];
 

@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { Trash2, X } from "lucide-react";
 import { Cover } from "@/components/Cover";
+import { Kicker } from "@/components/Editorial";
 import { EmptyState } from "@/components/States";
 import { Sheet } from "@/components/Layer";
 import { toast } from "@/components/Toast";
@@ -37,6 +38,7 @@ export default function HistoryPage() {
     <div className="page page-narrow">
       <header className="page-head">
         <div>
+          <Kicker>Your trail</Kicker>
           <h1>History</h1>
           <p className="muted">Where you left off in each series.</p>
         </div>

@@ -1,11 +1,15 @@
 import { useMemo, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { Download, Plus, RotateCcw, Trash2, Upload } from "lucide-react";
+import { Award, Download, Lock, Plus, RotateCcw, Trash2, Upload } from "lucide-react";
+import { Avatar } from "@/components/Avatar";
+import { Kicker } from "@/components/Editorial";
+import { MascotSays } from "@/components/Mascot";
+import { achievements, readingStats, type ReadingStats } from "@/lib/profile/stats";
 import { Sheet } from "@/components/Layer";
 import { toast } from "@/components/Toast";
 import { useHead } from "@/lib/seo";
 import { updateSettings, useSettings } from "@/lib/settings";
-import { createProfile, deleteProfile, switchProfile, unhideTitle, updateProfile, useUser } from "@/lib/store/user";
+import { allCollections, createProfile, deleteProfile, switchProfile, unhideTitle, updateProfile, useUser } from "@/lib/store/user";
 import { isMemoryStorage } from "@/lib/store/db";
 import { downloadJson, exportProfile, importProfile } from "@/lib/store/transfer";
 import { resetIntel, useIntel } from "@/lib/intel/runtime";
@@ -67,6 +71,28 @@ function TasteDna() {
   );
 }
 
+function Activity({ s }: { s: ReadingStats }) {
+  const max = Math.max(1, ...s.days.map((d) => d.count));
+  const level = (c: number) => (c === 0 ? 0 : c / max > 0.66 ? 3 : c / max > 0.33 ? 2 : 1);
+  const lead = (new Date(s.days[0]!.date).getDay() + 6) % 7; // Monday-first columns
+  const cells = [...Array.from({ length: lead }, () => null), ...s.days];
+  return (
+    <section className="profile-block" aria-labelledby="activity-h">
+      <div className="profile-block-head">
+        <h2 id="activity-h">Reading activity</h2>
+        <p className="muted">Chapters finished over the last 12 weeks</p>
+      </div>
+      <div className="heatmap" role="img" aria-label={`${s.activeDays} active days in the last 12 weeks`}>
+        {cells.map((d, i) => (d ? <span key={d.date} data-l={level(d.count)} title={`${new Date(d.date).toLocaleDateString()}: ${d.count} ${d.count === 1 ? "chapter" : "chapters"}`} /> : <span key={`x${i}`} data-empty />))}
+      </div>
+      <p className="recap">
+        <b>{s.thisMonth}</b> {s.thisMonth === 1 ? "chapter" : "chapters"} this month
+        {s.lastMonth > 0 && <span className="muted"> · {s.lastMonth} last month</span>}
+      </p>
+    </section>
+  );
+}
+
 export default function Profile() {
   const profile = useUser((s) => s.profile);
   const profiles = useUser((s) => s.profiles);
@@ -78,16 +104,98 @@ export default function Profile() {
   const [newOpen, setNewOpen] = useState(false);
   const [name, setName] = useState("");
   const [confirm, setConfirm] = useState<null | "reset" | "delete">(null);
+  const progress = useUser((s) => s.progress);
+  const library = useUser((s) => s.library);
+  const state = useUser((s) => s);
+  const stats = useMemo(() => readingStats(progress.values(), library.values(), titles), [progress, library, titles]);
+  const awards = useMemo(() => achievements(stats, allCollections(state).length), [stats, state]);
   useHead({ title: "Profile and settings", noindex: true });
   if (!profile) return null;
+  const earned = awards.filter((a) => a.earned).length;
+  const hasReading = stats.chaptersRead > 0 || stats.completed > 0 || stats.favourites > 0;
   return (
-    <div className="page page-narrow">
-      <header className="page-head">
-        <div>
+    <div className="page page-narrow profile-page">
+      <header className="profile-hero">
+        <Avatar name={profile.name} color={profile.color} size={72} />
+        <div style={{ minWidth: 0 }}>
+          <Kicker>Your reading universe</Kicker>
           <h1>{profile.name}</h1>
-          <p className="muted">Profiles keep reading, library and recommendations separate on this device.</p>
+          <p className="muted">Reading, library and recommendations for this profile stay on this device.</p>
         </div>
       </header>
+      <dl className="stat-strip profile-stats" style={{ ["--n" as string]: 4 }}>
+        {[
+          ["Chapters read", stats.chaptersRead],
+          ["Series started", stats.seriesStarted],
+          ["Completed", stats.completed],
+          ["Favourites", stats.favourites],
+        ].map(([l, v]) => (
+          <div key={l}>
+            <dt>{l}</dt>
+            <dd>{Number(v).toLocaleString()}</dd>
+          </div>
+        ))}
+      </dl>
+      {!hasReading ? (
+        <div className="profile-block">
+          <MascotSays size={96}>Your stats fill in as you read. Finish a chapter and it shows up here.</MascotSays>
+          <Link className="btn btn-primary" to="/">
+            Enter your next story
+          </Link>
+        </div>
+      ) : (
+        <>
+          <Activity s={stats} />
+          {stats.genres.length > 0 && (
+            <section className="profile-block" aria-labelledby="genres-h">
+              <div className="profile-block-head">
+                <h2 id="genres-h">Favourite genres</h2>
+                <p className="muted">From series you've read or saved</p>
+              </div>
+              <ol className="genre-rank">
+                {stats.genres.slice(0, 5).map(([g, n], i) => (
+                  <li key={g}>
+                    <Link to={`/discover?tag=${encodeURIComponent(g)}`}>
+                      <span className="genre-rank-no">{String(i + 1).padStart(2, "0")}</span>
+                      <span className="genre-rank-name">{g}</span>
+                      <span className="muted">
+                        {n} series
+                      </span>
+                    </Link>
+                  </li>
+                ))}
+              </ol>
+            </section>
+          )}
+        </>
+      )}
+      {settings.achievements && (
+        <section className="profile-block" aria-labelledby="awards-h">
+          <div className="profile-block-head">
+            <h2 id="awards-h">Milestones</h2>
+            <p className="muted">
+              {earned} of {awards.length} · just for fun, no streaks
+            </p>
+          </div>
+          <ul className="awards">
+            {awards.map((a) => (
+              <li key={a.id} className="award" data-earned={a.earned || undefined}>
+                <span className="award-ico" aria-hidden="true">
+                  {a.earned ? <Award size={18} /> : <Lock size={15} />}
+                </span>
+                <span className="award-body">
+                  <b>{a.title}</b>
+                  <span className="muted">{a.earned ? a.detail : `${a.detail} · ${a.value}/${a.goal}`}</span>
+                </span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
+      <h2 className="settings-title" id="settings">
+        Settings
+      </h2>
       {isMemoryStorage() && (
         <div className="banner banner-warn" role="status">
           This browser blocks local storage, so nothing will be kept after you close the tab.
@@ -99,9 +207,7 @@ export default function Profile() {
         <div className="chips">
           {profiles.map((p) => (
             <button key={p.id} className="chip" aria-pressed={p.id === profile.id} onClick={() => void switchProfile(p.id).then(() => toast(`Switched to ${p.name}`))}>
-              <span className="avatar" style={{ background: p.color }} aria-hidden="true">
-                {p.name.slice(0, 1).toUpperCase()}
-              </span>
+              <Avatar name={p.name} color={p.color} size={28} />
               {p.name}
             </button>
           ))}
@@ -144,6 +250,13 @@ export default function Profile() {
           <span className="label">Reduce motion</span>
           <Segmented label="Reduce motion" value={settings.reduceMotion} options={[["system", "System"], ["on", "On"], ["off", "Off"]]} onChange={(v) => updateSettings({ reduceMotion: v })} />
         </div>
+        <label className="switch settings-row">
+          <span>
+            <span className="label">Show milestones</span>
+            <span className="hint">Optional achievements on this page. They never appear while you read.</span>
+          </span>
+          <input type="checkbox" checked={settings.achievements} onChange={(e) => updateSettings({ achievements: e.target.checked })} />
+        </label>
       </section>
 
       <section className="settings-group" aria-labelledby="reading-h">

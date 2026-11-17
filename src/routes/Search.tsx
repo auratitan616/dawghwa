@@ -1,11 +1,14 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { Globe, Search as SearchIcon, X } from "lucide-react";
+import { Clock, Globe, Search as SearchIcon, SlidersHorizontal, TrendingUp, X } from "lucide-react";
+import { Sheet } from "@/components/Layer";
+import { Kicker } from "@/components/Editorial";
+import type { BrowseOrder, MangaKind } from "@/lib/api/types";
 import { TitleGrid } from "@/components/Grid";
 import { EmptyState, ErrorState, GridSkeleton } from "@/components/States";
 import { Cover } from "@/components/Cover";
-import { parseIntent } from "@/lib/search/intent";
+import { parseIntent, type Intent } from "@/lib/search/intent";
 import { runIntent } from "@/lib/search/run";
 import { textScore } from "@/lib/search/local";
 import { streamSearch } from "@/lib/api/endpoints";
@@ -15,6 +18,39 @@ import { getCachedTitles } from "@/lib/store/db";
 import { useUser } from "@/lib/store/user";
 import { useRankContext } from "@/lib/feed/context";
 import { fromResult, titlePath, type Title } from "@/lib/titles";
+
+const KINDS: [MangaKind, string][] = [
+  ["manhwa", "Manhwa"],
+  ["manga", "Manga"],
+  ["manhua", "Manhua"],
+];
+const STATUSES = [
+  ["completed", "Completed"],
+  ["ongoing", "Ongoing"],
+  ["hiatus", "On hiatus"],
+] as const;
+const SORTS: [BrowseOrder | "", string][] = [
+  ["", "Best match"],
+  ["popular", "Most followed"],
+  ["rating", "Top rated"],
+  ["latest", "Recently updated"],
+  ["new", "Newly added"],
+];
+const plist = (p: URLSearchParams, k: string) => (p.get(k) ?? "").split(",").filter(Boolean);
+
+/** Explicit filters from the URL (chips / sheet) merged into the parsed intent. All are real catalogue filters (or labelled on-device ones). */
+function withFilters(i: Intent, f: { kinds: string[]; status: string[]; tags: string[]; order?: BrowseOrder }): Intent {
+  const n = f.kinds.length + f.status.length + f.tags.length + (f.order ? 1 : 0);
+  if (!n) return i;
+  const kinds = [...new Set([...i.kinds, ...(f.kinds as MangaKind[])])];
+  const status = [...new Set([...i.status, ...f.status])] as Intent["status"];
+  const includeTags = [...new Set([...i.includeTags, ...f.tags])];
+  const chips = [...i.chips];
+  for (const k of f.kinds) if (!i.kinds.includes(k as MangaKind)) chips.push({ id: `fk:${k}`, label: KINDS.find(([x]) => x === k)?.[1] ?? k, where: "server" });
+  for (const st of f.status) if (!i.status.includes(st as never)) chips.push({ id: `fs:${st}`, label: STATUSES.find(([x]) => x === st)?.[1] ?? st, where: "server" });
+  for (const t of f.tags) if (!i.includeTags.includes(t)) chips.push({ id: `ft:${t}`, label: t, where: "server" });
+  return { ...i, kinds, status, includeTags, order: f.order ?? i.order, chips, structured: true };
+}
 
 const EXAMPLES = ["Manhwa with an overpowered MC and revenge", "Completed fantasy manga with romance", "Dark Korean manhwa without a love triangle", "Something similar to Solo Leveling", "Completed romance with fewer than 100 chapters"];
 
@@ -140,6 +176,37 @@ export default function Search() {
   const input = useRef<HTMLInputElement>(null);
   const [recent, setRecent] = useState<string[]>(() => readRecent(profileId));
   const similarKey = params.get("similar") ?? undefined;
+  const [sheet, setSheet] = useState(false);
+  const fKinds = plist(params, "kind");
+  const fStatus = plist(params, "status");
+  const fTags = plist(params, "tag");
+  const fOrder = (params.get("order") as BrowseOrder) || undefined;
+  const filterCount = fKinds.length + fStatus.length + fTags.length + (fOrder ? 1 : 0);
+  const toggleParam = (k: string, v: string) => {
+    const p = new URLSearchParams(params);
+    const cur = plist(p, k);
+    const next = cur.includes(v) ? cur.filter((x) => x !== v) : [...cur, v];
+    if (next.length) p.set(k, next.join(","));
+    else p.delete(k);
+    setParams(p, { replace: true });
+  };
+  const setParam = (k: string, v?: string) => {
+    const p = new URLSearchParams(params);
+    if (v) p.set(k, v);
+    else p.delete(k);
+    setParams(p, { replace: true });
+  };
+  const clearFilters = () => {
+    const p = new URLSearchParams(params);
+    ["kind", "status", "tag", "order"].forEach((k) => p.delete(k));
+    setParams(p, { replace: true });
+  };
+  const trending = useBrowse({ order: "popular", year: new Date().getFullYear(), limit: 10 });
+  const removeRecent = (r: string) => {
+    const next = readRecent(profileId).filter((x) => x !== r);
+    localStorage.setItem(recentKey(profileId), JSON.stringify(next));
+    setRecent(next);
+  };
   useHead({ title: q ? `Search: ${q}` : "Search", path: "/search", noindex: true });
 
   useEffect(() => setRecent(readRecent(profileId)), [profileId]);
@@ -164,7 +231,11 @@ export default function Search() {
     return () => clearTimeout(t);
   }, [q, profileId]);
 
-  const intent = useMemo(() => parseIntent(q, vocab.data), [q, vocab.data]);
+  const intent = useMemo(() => withFilters(parseIntent(q, vocab.data), { kinds: fKinds, status: fStatus, tags: fTags, order: fOrder }), [q, vocab.data, params]); // eslint-disable-line react-hooks/exhaustive-deps
+  const hasQuery = Boolean(q) || filterCount > 0;
+  const genres = useMemo(() => (vocab.data?.tags ?? []).filter((t) => t.group === "genre").map((t) => t.name).sort(), [vocab.data]);
+  const lastWord = text.trim().split(/\s+/).pop()?.toLowerCase() ?? "";
+  const tagSuggest = lastWord.length >= 2 ? (vocab.data?.tags ?? []).filter((t) => t.group !== "content" && t.name.toLowerCase().startsWith(lastWord) && !intent.includeTags.includes(t.name)).slice(0, 4) : [];
   const seedQ = useQuery({
     queryKey: ["seed", similarKey],
     enabled: Boolean(similarKey),
@@ -174,7 +245,7 @@ export default function Search() {
   const ready = !similarKey || seedQ.isFetched;
   const intentQ = useQuery({
     queryKey: ["intent", JSON.stringify({ ...intent, raw: undefined, chips: undefined }), similarKey ?? ""],
-    enabled: Boolean(q) && structured && ready,
+    enabled: hasQuery && structured && ready,
     queryFn: ({ signal }) => runIntent(intent, { signal, want: 36, seed: seedQ.data ?? undefined }),
     staleTime: 10 * 60_000,
   });
@@ -183,6 +254,56 @@ export default function Search() {
   const items = (structured ? intentQ.data?.items : textItems)?.filter((t) => !ctx.exclude?.has(t.key)) ?? [];
   const active = structured ? intentQ : textQ;
   const local = intent.chips.filter((c) => c.where === "local");
+
+  const filters = (
+    <div className="stack" style={{ gap: 20 }}>
+      <fieldset>
+        <legend className="eyebrow">Sort</legend>
+        <div className="chips">
+          {SORTS.map(([o, l]) => (
+            <button key={o || "best"} className="chip" aria-pressed={(fOrder ?? "") === o} onClick={() => setParam("order", o || undefined)}>
+              {l}
+            </button>
+          ))}
+        </div>
+      </fieldset>
+      <fieldset>
+        <legend className="eyebrow">Format</legend>
+        <div className="chips">
+          {KINDS.map(([k, l]) => (
+            <button key={k} className="chip" aria-pressed={fKinds.includes(k)} onClick={() => toggleParam("kind", k)}>
+              {l}
+            </button>
+          ))}
+        </div>
+      </fieldset>
+      <fieldset>
+        <legend className="eyebrow">Status</legend>
+        <div className="chips">
+          {STATUSES.map(([k, l]) => (
+            <button key={k} className="chip" aria-pressed={fStatus.includes(k)} onClick={() => toggleParam("status", k)}>
+              {l}
+            </button>
+          ))}
+        </div>
+      </fieldset>
+      {genres.length > 0 && (
+        <fieldset>
+          <legend className="eyebrow">Genres (all must match)</legend>
+          <div className="chips">
+            {genres.map((g) => (
+              <button key={g} className="chip" aria-pressed={fTags.includes(g)} onClick={() => toggleParam("tag", g)}>
+                {g}
+              </button>
+            ))}
+          </div>
+        </fieldset>
+      )}
+      <p className="muted filter-hint">
+        These filters are sent to the catalogue. Themes, moods, length and "hidden gems" can be typed into the search box; they're applied on this device and marked as such.
+      </p>
+    </div>
+  );
 
   return (
     <div className="page search-page">
@@ -196,16 +317,56 @@ export default function Search() {
             input.current?.blur();
           }}
         >
-          <SearchIcon size={18} aria-hidden="true" />
-          <input ref={input} autoFocus type="search" enterKeyHint="search" value={text} onChange={(e) => setText(e.target.value)} placeholder="Title, or describe it: dark revenge manhwa, completed..." aria-label="Search titles" autoComplete="off" spellCheck={false} />
+          <SearchIcon size={20} aria-hidden="true" />
+          <input ref={input} autoFocus type="search" enterKeyHint="search" value={text} onChange={(e) => setText(e.target.value)} placeholder="Title, or describe it: dark revenge manhwa..." aria-label="Search titles" autoComplete="off" spellCheck={false} />
           {text && (
             <button type="button" className="icon-btn" aria-label="Clear search" onClick={() => (setText(""), input.current?.focus())}>
               <X size={18} />
             </button>
           )}
         </form>
-        {q && intent.chips.length > 0 && (
-          <div className="chips" style={{ marginTop: 10 }} aria-label="Understood filters">
+        <div className="filter-bar" aria-label="Quick filters">
+          <button className="chip chip-filter" onClick={() => setSheet(true)} aria-label={`All filters${filterCount ? `, ${filterCount} active` : ""}`}>
+            <SlidersHorizontal size={15} /> Filters{filterCount ? ` · ${filterCount}` : ""}
+          </button>
+          {KINDS.map(([k, l]) => (
+            <button key={k} className="chip" aria-pressed={fKinds.includes(k)} onClick={() => toggleParam("kind", k)}>
+              {l}
+            </button>
+          ))}
+          <button className="chip" aria-pressed={fStatus.includes("completed")} onClick={() => toggleParam("status", "completed")}>
+            Completed
+          </button>
+          {fTags.map((t) => (
+            <button key={t} className="chip" aria-pressed="true" onClick={() => toggleParam("tag", t)} aria-label={`Remove ${t}`}>
+              {t} <X size={13} />
+            </button>
+          ))}
+          {filterCount > 0 && (
+            <button className="btn btn-ghost btn-sm" onClick={clearFilters}>
+              Clear filters
+            </button>
+          )}
+        </div>
+        {tagSuggest.length > 0 && (
+          <div className="suggest-row" aria-label="Genre suggestions">
+            {tagSuggest.map((t) => (
+              <button
+                key={t.name}
+                className="suggest"
+                onClick={() => {
+                  setText(text.trim().split(/\s+/).slice(0, -1).join(" "));
+                  toggleParam("tag", t.name);
+                }}
+              >
+                <small>{t.group === "genre" ? "Genre" : t.group === "theme" ? "Theme" : "Tag"}</small> {t.name}
+              </button>
+            ))}
+          </div>
+        )}
+        {hasQuery && intent.chips.length > 0 && (
+          <div className="chips understood" aria-label="Understood filters">
+            <span className="understood-label">Understood</span>
             {intent.chips.map((c) => (
               <span key={c.id} className={`chip ${c.where === "local" ? "chip-local" : ""} ${c.negative ? "chip-neg" : ""}`} title={c.where === "local" ? "Applied on this device after fetching results" : "Sent to the catalogue as a filter"}>
                 {c.label}
@@ -216,47 +377,91 @@ export default function Search() {
         )}
       </div>
 
-      {!q && (
-        <div className="stack" style={{ gap: 28, marginTop: 12 }}>
+      {!hasQuery && (
+        <div className="search-home">
           {recent.length > 0 && (
-            <section>
+            <section className="section">
               <div className="section-head">
-                <h2>Recent</h2>
+                <div className="section-titles">
+                  <h2>Recent searches</h2>
+                </div>
                 <button className="btn btn-sm btn-ghost" onClick={() => (localStorage.removeItem(recentKey(profileId)), setRecent([]))}>
-                  Clear
+                  Clear all
                 </button>
               </div>
-              <div className="chips">
+              <ul className="recent-list">
                 {recent.map((r) => (
-                  <button key={r} className="chip" onClick={() => setText(r)}>
-                    {r}
-                  </button>
+                  <li key={r}>
+                    <button className="recent-q" onClick={() => setText(r)}>
+                      <Clock size={16} /> {r}
+                    </button>
+                    <button className="icon-btn" aria-label={`Remove "${r}" from recent searches`} onClick={() => removeRecent(r)}>
+                      <X size={16} />
+                    </button>
+                  </li>
                 ))}
-              </div>
+              </ul>
             </section>
           )}
-          <section>
+          <section className="section">
             <div className="section-head">
-              <div>
-                <h2>Describe what you want</h2>
-                <p>Search understands formats, genres, themes, status, length and "similar to". It runs on your device.</p>
+              <div className="section-titles">
+                <Kicker>Try describing it</Kicker>
+                <h2>Search understands what you mean</h2>
+                <p>Formats, genres, themes, status, length and "similar to". The parsing runs on your device.</p>
               </div>
             </div>
-            <div className="suggestions">
+            <div className="example-list">
               {EXAMPLES.map((e) => (
-                <button key={e} className="menu-item" onClick={() => setText(e)}>
-                  <SearchIcon size={16} /> {e}
+                <button key={e} className="example" onClick={() => setText(e)}>
+                  <span>"{e}"</span>
                 </button>
               ))}
             </div>
           </section>
+          {(trending.data?.items.length ?? 0) > 0 && (
+            <section className="section">
+              <div className="section-head">
+                <div className="section-titles">
+                  <h2>
+                    <TrendingUp size={20} style={{ verticalAlign: -2, marginRight: 6 }} />
+                    Rising this year
+                  </h2>
+                  <p>Most-followed series first published this year</p>
+                </div>
+              </div>
+              <ol className="trend-list">
+                {trending.data!.items.slice(0, 8).map((t, n) => (
+                  <li key={t.key}>
+                    <Link to={titlePath(t)}>
+                      <span className="trend-no">{n + 1}</span>
+                      <Cover src={t.cover} title={t.title} sizes="40px" className="cover-sm" />
+                      <span className="trend-title">{t.title}</span>
+                    </Link>
+                  </li>
+                ))}
+              </ol>
+            </section>
+          )}
         </div>
       )}
 
-      {q && (
+      {hasQuery && (
         <div style={{ marginTop: 8 }}>
-          {structured && intentQ.data && (
-            <p className="muted" style={{ fontSize: "var(--text-sm)", margin: "8px 0 16px" }}>
+          <div className="result-head">
+            <p className="result-count" aria-live="polite">
+              {active.data ? (items.length ? `${items.length}${structured && intentQ.data?.hasMore ? "+" : ""} ${items.length === 1 ? "title" : "titles"}` : "No titles") : "Searching..."}
+            </p>
+            <select className="select select-sm" aria-label="Sort results" value={fOrder ?? ""} onChange={(e) => setParam("order", e.target.value || undefined)}>
+              {SORTS.map(([o, l]) => (
+                <option key={o || "best"} value={o}>
+                  {l}
+                </option>
+              ))}
+            </select>
+          </div>
+          {structured && intentQ.data && (intentQ.data.seed || intentQ.data.seedMissing || local.length > 0 || intentQ.data.downgraded.length > 0) && (
+            <p className="muted result-note">
               {intentQ.data.seed ? `Ranked by similarity to ${intentQ.data.seed.title}. ` : ""}
               {intentQ.data.seedMissing ? `Couldn't find "${intent.similarTo}" in the catalogue, so this uses the other filters only. ` : ""}
               {local.length || intentQ.data.downgraded.length ? `Filtered on this device: ${intentQ.data.removedLocally} of ${intentQ.data.scanned} fetched titles removed.` : ""}
@@ -269,7 +474,9 @@ export default function Search() {
           ) : active.isLoading || (structured && !intentQ.data) ? (
             <GridSkeleton count={12} />
           ) : !items.length ? (
-            <EmptyState title={`Nothing found for "${q}"`}>{structured ? "Try fewer filters, or rephrase. Filters marked on device can only check titles that were fetched." : "Check the spelling, or search all sources below."}</EmptyState>
+            <EmptyState title={q ? `Nothing found for "${q}"` : "Nothing matches these filters"} action={filterCount > 0 ? <button className="btn" onClick={clearFilters}>Clear filters</button> : undefined}>
+              {structured ? "Try fewer filters, or rephrase. Filters marked on device can only check titles that were fetched." : "Check the spelling, or search all sources below."}
+            </EmptyState>
           ) : (
             <TitleGrid items={items} context="search" />
           )}
@@ -280,6 +487,19 @@ export default function Search() {
           )}
         </div>
       )}
+      <Sheet open={sheet} onClose={() => setSheet(false)} title="Filters">
+        {filters}
+        <div className="sheet-foot">
+          {filterCount > 0 && (
+            <button className="btn" onClick={clearFilters}>
+              Clear
+            </button>
+          )}
+          <button className="btn btn-primary" style={{ flex: 1 }} onClick={() => setSheet(false)}>
+            Show results
+          </button>
+        </div>
+      </Sheet>
     </div>
   );
 }

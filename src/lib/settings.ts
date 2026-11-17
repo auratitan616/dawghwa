@@ -20,6 +20,8 @@ export interface Settings {
   dataSaver: boolean;
   pageGap: boolean;
   tapZones: boolean;
+  /** Show optional milestone achievements on the profile (never shown while reading). */
+  achievements: boolean;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -32,6 +34,7 @@ export const DEFAULT_SETTINGS: Settings = {
   dataSaver: false,
   pageGap: false,
   tapZones: true,
+  achievements: true,
 };
 
 let settings: Settings = { ...DEFAULT_SETTINGS, ...readLocal() };
@@ -89,7 +92,7 @@ export function reducedMotion(): boolean {
   return window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
 }
 
-const BG = { dark: "#0e0d0c", light: "#f6f2ea" };
+const BG = { dark: "#151519", light: "#F5F0E7" };
 
 export function applyTheme() {
   if (typeof document === "undefined") return;

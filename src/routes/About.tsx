@@ -34,7 +34,7 @@ export default function About() {
           </a>
           . Dawghwa is not affiliated with MangaDex.
         </li>
-        <li>Typefaces: Bricolage Grotesque and Inter (SIL Open Font License). Icons: Lucide (ISC).</li>
+        <li>Typefaces: Archivo and Inter (SIL Open Font License). Icons: Lucide (ISC).</li>
       </ul>
     </div>
   );

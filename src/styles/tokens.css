@@ -1,9 +1,18 @@
-/* Dawghwa design tokens: "ink and paper". Warm near-black ink, newsprint paper,
-   one hanko-seal vermillion accent. Dark-first; light theme is paper. */
+/* Dawghwa design tokens — "Manga Culture + Playful Discovery".
+   Dark-first charcoal ink; light theme is warm paper with deep ink (not an inversion).
+   Accents have jobs: vermilion = important action / active state, manga lime = rare
+   playful highlight (Surprise me, achievements), lavender = secondary emphasis and the
+   mascot's colour. Documented in docs/DESIGN_SYSTEM.md. */
 :root {
-  --font-display: "Bricolage Grotesque Variable", "Bricolage Grotesque", ui-sans-serif, system-ui, sans-serif;
+  /* Archivo (variable weight + width) is the only display face: wide/black for headlines,
+     condensed for chapter numbers and labels. Inter for UI and reading. */
+  --font-display: "Archivo Variable", "Archivo", ui-sans-serif, system-ui, sans-serif;
   --font-body: "Inter Variable", "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --display-stretch: 112%;
+  --label-stretch: 68%;
 
+  /* type scale (1.2 minor third, fluid at the top) */
+  --text-2xs: 0.6875rem;
   --text-xs: 0.75rem;
   --text-sm: 0.8125rem;
   --text-base: 0.9375rem;
@@ -11,6 +20,7 @@
   --text-lg: 1.25rem;
   --text-xl: clamp(1.375rem, 1.1rem + 1vw, 1.75rem);
   --text-2xl: clamp(1.75rem, 1.3rem + 2vw, 2.75rem);
+  --text-3xl: clamp(2.125rem, 1.4rem + 3.2vw, 3.75rem);
 
   --space-1: 4px;
   --space-2: 8px;
@@ -29,10 +39,14 @@
   --radius-lg: 16px;
   --radius-full: 999px;
 
+  /* panel language: ink-bordered frames with a hard offset shadow, used selectively */
+  --panel-border: 2px;
+  --panel-offset: 4px;
+
   --gutter: clamp(16px, 4vw, 32px);
   --sidebar-w: 232px;
   --topbar-h: 56px;
-  --bottomnav-h: 60px;
+  --bottomnav-h: 62px;
   --safe-top: env(safe-area-inset-top, 0px);
   --safe-bottom: env(safe-area-inset-bottom, 0px);
   --safe-left: env(safe-area-inset-left, 0px);
@@ -41,62 +55,101 @@
 
   --ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
   --ease-in-out: cubic-bezier(0.6, 0, 0.3, 1);
+  --ease-pop: cubic-bezier(0.3, 1.4, 0.5, 1);
   --dur-fast: 120ms;
   --dur: 200ms;
   --dur-slow: 320ms;
+
+  /* brand constants (theme independent) */
+  --vermilion: #ff5948;
+  --lime: #c6ed63;
+  --lavender: #b8a5f7;
+  --on-bright: #151519; /* text on vermilion / lime / lavender fills: ≥ 5.9:1 */
 }
 
 :root,
 [data-theme="dark"] {
   color-scheme: dark;
-  --bg: #0e0d0c;
-  --bg-raised: #161412;
-  --surface: #1c1a17;
-  --surface-2: #24211d;
-  --surface-3: #2e2a25;
-  --line: rgb(242 234 220 / 0.09);
-  --line-strong: rgb(242 234 220 / 0.18);
-  --ink: #f2ece2;
-  --ink-2: #c9c0b3;
-  --ink-3: #8f877c;
-  --ink-4: #655f57;
-  --accent: #ff5a36;
-  --accent-ink: #160805;
-  --accent-soft: rgb(255 90 54 / 0.14);
-  --accent-text: #ff7a5c;
-  --good: #63c58a;
-  --warn: #f0b54a;
-  --bad: #ff6b6b;
-  --scrim: rgb(8 7 6 / 0.72);
-  --shadow: 0 1px 0 rgb(0 0 0 / 0.3), 0 8px 24px rgb(4 3 2 / 0.45);
-  --shadow-lg: 0 24px 64px rgb(4 3 2 / 0.6);
-  --skeleton-a: #1d1b18;
-  --skeleton-b: #2a2622;
+  --bg: #151519;
+  --bg-raised: #1a1a1f;
+  --surface: #202027;
+  --surface-2: #292931;
+  --surface-3: #33333c;
+  --line: rgb(244 239 230 / 0.09);
+  --line-strong: rgb(244 239 230 / 0.2);
+  --ink: #f4efe6; /* 15.9:1 on bg */
+  --ink-2: #cdc7bd; /* 10.8:1 */
+  --ink-3: #9a968f; /* 6.2:1 on bg, 5.5:1 on surface */
+  --ink-4: #6e6b67; /* decorative / disabled only */
+  --frame: #f4efe6; /* panel border colour */
+  --accent: var(--vermilion);
+  --accent-ink: var(--on-bright);
+  --accent-soft: rgb(255 89 72 / 0.15);
+  --accent-text: #ff7a6b; /* 7.2:1 on bg */
+  --lime-text: #c6ed63;
+  --lime-soft: rgb(198 237 99 / 0.14);
+  --lavender-text: #c4b5fa;
+  --lavender-soft: rgb(184 165 247 / 0.15);
+  --good: #7fd69a;
+  --warn: #f2c35b;
+  --bad: #ff7a72;
+  --scrim: rgb(10 10 12 / 0.74);
+  --shadow: 0 1px 0 rgb(0 0 0 / 0.35), 0 8px 24px rgb(0 0 0 / 0.4);
+  --shadow-lg: 0 24px 64px rgb(0 0 0 / 0.55);
+  --hard-shadow: var(--panel-offset) var(--panel-offset) 0 #000;
+  --halftone: rgb(244 239 230 / 0.07);
+  --skeleton-a: #1e1e24;
+  --skeleton-b: #2a2a32;
 }
 
 [data-theme="light"] {
   color-scheme: light;
-  --bg: #f6f2ea;
-  --bg-raised: #fbf8f2;
-  --surface: #ffffff;
-  --surface-2: #efe9de;
-  --surface-3: #e5ddcf;
-  --line: rgb(40 30 20 / 0.1);
-  --line-strong: rgb(40 30 20 / 0.2);
-  --ink: #1b1714;
-  --ink-2: #4a423a;
-  --ink-3: #6f665c;
-  --ink-4: #9a9086;
-  --accent: #e2401c;
-  --accent-ink: #ffffff;
-  --accent-soft: rgb(226 64 28 / 0.1);
-  --accent-text: #c2360f;
-  --good: #23864c;
-  --warn: #9a6400;
-  --bad: #c62828;
-  --scrim: rgb(27 23 20 / 0.55);
-  --shadow: 0 1px 0 rgb(60 40 20 / 0.06), 0 8px 24px rgb(60 40 20 / 0.1);
-  --shadow-lg: 0 24px 64px rgb(60 40 20 / 0.18);
-  --skeleton-a: #ebe4d8;
-  --skeleton-b: #f4efe6;
+  --bg: #f5f0e7;
+  --bg-raised: #faf6ef;
+  --surface: #eae3d7;
+  --surface-2: #e0d8ca;
+  --surface-3: #d4cbbb;
+  --line: rgb(29 26 34 / 0.12);
+  --line-strong: rgb(29 26 34 / 0.26);
+  --ink: #1d1a22; /* 15.1:1 on paper */
+  --ink-2: #45404a; /* 8.9:1 */
+  --ink-3: #66606a; /* 5.4:1 on paper, 4.8:1 on surface */
+  --ink-4: #9b948c;
+  --frame: #1d1a22;
+  --accent: var(--vermilion);
+  --accent-ink: var(--on-bright);
+  --accent-soft: rgb(255 89 72 / 0.14);
+  --accent-text: #bf2f1f; /* 5.1:1 on paper; vermilion itself is only a fill here */
+  --lime-text: #4b6510;
+  --lime-soft: rgb(150 190 40 / 0.2);
+  --lavender-text: #5d43c8;
+  --lavender-soft: rgb(184 165 247 / 0.3);
+  --good: #1d6a41;
+  --warn: #8a5a00;
+  --bad: #b3261e;
+  --scrim: rgb(29 26 34 / 0.5);
+  --shadow: 0 1px 0 rgb(40 30 20 / 0.06), 0 8px 24px rgb(40 30 20 / 0.1);
+  --shadow-lg: 0 24px 64px rgb(40 30 20 / 0.2);
+  --hard-shadow: var(--panel-offset) var(--panel-offset) 0 var(--frame);
+  --halftone: rgb(29 26 34 / 0.08);
+  --skeleton-a: #e7dfd2;
+  --skeleton-b: #f1ebe1;
+}
+
+/* semantic aliases (prefer these in new code) */
+:root {
+  --color-background: var(--bg);
+  --color-surface: var(--surface);
+  --color-elevated: var(--surface-2);
+  --color-text: var(--ink);
+  --color-text-secondary: var(--ink-2);
+  --color-text-muted: var(--ink-3);
+  --color-border: var(--line);
+  --color-action-primary: var(--accent);
+  --color-action-secondary: var(--lavender);
+  --color-success: var(--good);
+  --color-warning: var(--warn);
+  --color-error: var(--bad);
+  --color-focus: var(--lavender);
+  --color-disabled: var(--ink-4);
 }

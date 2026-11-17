@@ -2,6 +2,7 @@ import { useEffect, useState, useSyncExternalStore } from "react";
 import { NavLink, Outlet, ScrollRestoration, useLocation, useNavigate } from "react-router-dom";
 import { BookOpen, Compass, History, Home, Search, User, WifiOff, CloudOff, RefreshCw } from "lucide-react";
 import { Brand } from "@/components/Brand";
+import { Avatar } from "@/components/Avatar";
 import { Toasts } from "@/components/Toast";
 import { apiHealth } from "@/lib/api/client";
 import { network } from "@/lib/platform";
@@ -11,8 +12,8 @@ import { updateReady, applyUpdate } from "./pwa";
 const NAV = [
   { to: "/", label: "Home", icon: Home, end: true },
   { to: "/discover", label: "Discover", icon: Compass },
+  { to: "/search", label: "Search", icon: Search },
   { to: "/library", label: "Library", icon: BookOpen },
-  { to: "/history", label: "History", icon: History },
   { to: "/profile", label: "Profile", icon: User },
 ];
 
@@ -66,6 +67,10 @@ export function Shell() {
               {label}
             </NavLink>
           ))}
+          <NavLink to="/history">
+            <History size={19} strokeWidth={1.9} />
+            History
+          </NavLink>
         </nav>
         <div className="sidebar-section">Shortcuts</div>
         <NavLink className="side-link" to="/discover?order=rating">
@@ -80,9 +85,7 @@ export function Shell() {
         <div className="sidebar-foot">
           {profile && (
             <NavLink to="/profile" className="side-link" style={{ minHeight: 52 }}>
-              <span className="avatar" style={{ background: profile.color, width: 28, height: 28, fontSize: 12 }} aria-hidden="true">
-                {profile.name.slice(0, 1).toUpperCase()}
-              </span>
+              <Avatar name={profile.name} color={profile.color} size={30} />
               <span>
                 {profile.name}
                 <span className="dim" style={{ display: "block", fontSize: 11 }}>
@@ -104,6 +107,11 @@ export function Shell() {
               <span>Search titles, or try "completed fantasy manhwa"</span>
               <kbd>/</kbd>
             </button>
+          )}
+          {profile && (
+            <NavLink to="/profile" className="topbar-avatar" aria-label={`Profile: ${profile.name}`}>
+              <Avatar name={profile.name} color={profile.color} size={32} />
+            </NavLink>
           )}
         </header>
         {!online ? (
@@ -137,7 +145,9 @@ export function Shell() {
       <nav className="bottomnav" aria-label="Primary">
         {NAV.map(({ to, label, icon: Icon, end }) => (
           <NavLink key={to} to={to} end={end}>
-            <Icon size={22} strokeWidth={1.9} />
+            <span className="nav-ico">
+              <Icon size={21} strokeWidth={2} />
+            </span>
             {label}
           </NavLink>
         ))}

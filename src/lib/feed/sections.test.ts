@@ -17,7 +17,10 @@ describe("home sections", () => {
     const liked = catalog.filter((t) => t.meta?.kind === "manhua").slice(0, 10);
     const state = train({ profileId: "p", events: liked.map((t, i) => ({ profileId: "p", seq: i + 1, kind: "like", titleKey: t.key, at: Date.now() })), titles: new Map(catalog.map((t) => [t.key, t])) });
     const learned = orderSections(CATALOGUE_SECTIONS, state).map((s) => s.id);
-    expect(learned.indexOf("popular-manhua")).toBeLessThan(base.indexOf("popular-manhua"));
+    // liked manhua lift the manhua row past rows unrelated to that taste (other rows it shares focus with may rise too)
+    expect(base.indexOf("popular-manhua")).toBeGreaterThan(base.indexOf("completed"));
+    expect(learned.indexOf("popular-manhua")).toBeLessThan(learned.indexOf("completed"));
+    expect(learned.indexOf("popular-manhua")).toBeLessThan(learned.indexOf("top-rated"));
   });
 
   it("dedupes repeated titles across rows without emptying rows", () => {

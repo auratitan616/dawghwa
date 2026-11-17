@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { Link, Navigate, useNavigate } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
-import { BookOpen, Dices, Play, Plus, RefreshCw, Sparkles } from "lucide-react";
-import { Row } from "@/components/Row";
+import { BookOpen, Check, CheckCircle2, Dices, Play, Plus, RefreshCw, Sparkles, Timer } from "lucide-react";
+import { Row, SectionHead } from "@/components/Row";
+import { ChapterNo, Kicker, LeadCard, WideCard } from "@/components/Editorial";
 import { TitleCard } from "@/components/TitleCard";
 import { Cover } from "@/components/Cover";
 import { ErrorState, RowSkeleton } from "@/components/States";
@@ -12,9 +13,10 @@ import { noteShown, useRankContext } from "@/lib/feed/context";
 import { rank, rerankRow, surprise, type RankContext, type Scored } from "@/lib/intel/rank";
 import { evidence } from "@/lib/intel/learner";
 import { cosineSparse, vectorize } from "@/lib/intel/features";
-import { useBrowse } from "@/lib/query";
+import { useBrowse, useChapters } from "@/lib/query";
 import { useHead } from "@/lib/seo";
 import { continueList, setStatus, useUser } from "@/lib/store/user";
+import { MascotSays } from "@/components/Mascot";
 import { kindLabel, readerPath, statusLabel, titlePath, type Title } from "@/lib/titles";
 
 const MIN_ROW = 6;
@@ -51,6 +53,40 @@ function useClaimed(claims: Claims, order: number) {
   return claims.before(order);
 }
 
+function SectionBody({ def, items }: { def: SectionDef; items: Title[] }) {
+  if (def.layout === "spread") {
+    const [lead, ...rest] = items;
+    return (
+      <section className="section spread" aria-labelledby={`row-${def.id}`}>
+        <SectionHead id={def.id} title={def.title} subtitle={def.subtitle} more={def.more} />
+        <div className="spread-grid">
+          <LeadCard title={lead!} label={def.id === "hidden-gems" ? "Hidden gem" : def.id === "completed" ? "Finished" : undefined} />
+          <div className="spread-rest">
+            {rest.slice(0, 6).map((t) => (
+              <TitleCard key={t.key} title={t} context={def.id} />
+            ))}
+          </div>
+        </div>
+      </section>
+    );
+  }
+  if (def.layout === "wide")
+    return (
+      <Row id={def.id} title={def.title} subtitle={def.subtitle} more={def.more} className="row-wide">
+        {items.slice(0, 16).map((t) => (
+          <WideCard key={t.key} title={t} />
+        ))}
+      </Row>
+    );
+  return (
+    <Row id={def.id} title={def.title} subtitle={def.subtitle} more={def.more} ranked={def.layout === "ranked"}>
+      {items.map((t, i) => (
+        <TitleCard key={t.key} title={t} context={def.id} variant={def.layout === "ranked" ? "ranked" : "card"} rank={i + 1} />
+      ))}
+    </Row>
+  );
+}
+
 function CatalogueSection({ def, ctx, claims, order }: { def: SectionDef; ctx: RankContext; claims: Claims; order: number }) {
   const ref = useRef<HTMLDivElement>(null);
   const [visible, setVisible] = useState(order < 4);
@@ -74,33 +110,44 @@ function CatalogueSection({ def, ctx, claims, order }: { def: SectionDef; ctx: R
   if (q.isError && !q.data)
     return (
       <section className="section" ref={ref}>
-        <div className="section-head">
-          <h2>{def.title}</h2>
-        </div>
+        <SectionHead id={def.id} title={def.title} />
         <ErrorState error={q.error} retry={() => void q.refetch()} compact />
       </section>
     );
   if (!q.data)
     return (
       <section className="section" ref={ref} aria-busy="true">
-        <div className="section-head">
-          <div>
-            <h2>{def.title}</h2>
-            <p>{def.subtitle}</p>
-          </div>
-        </div>
+        <SectionHead id={def.id} title={def.title} subtitle={def.subtitle} />
         <RowSkeleton />
       </section>
     );
   if (items.length < (def.min ?? MIN_ROW)) return <div ref={ref} />; // not enough real matches: row is omitted
   return (
     <div ref={ref}>
-      <Row id={def.id} title={def.title} subtitle={def.subtitle} more={def.more} ranked={def.layout === "ranked"}>
-        {items.map((t, i) => (
-          <TitleCard key={t.key} title={t} context={def.id} variant={def.layout === "ranked" ? "ranked" : "card"} rank={i + 1} />
-        ))}
-      </Row>
+      <SectionBody def={def} items={items} />
     </div>
+  );
+}
+
+function greeting(d = new Date()) {
+  const h = d.getHours();
+  return h < 5 ? "Up late" : h < 12 ? "Good morning" : h < 18 ? "Good afternoon" : "Good evening";
+}
+
+function MagazineHead({ name, resuming }: { name?: string; resuming: boolean }) {
+  const today = new Date().toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short" });
+  return (
+    <header className="mag-head">
+      <div className="mag-dateline">
+        <span>Your reading universe</span>
+        <span className="tabular">{today}</span>
+      </div>
+      <p className="mag-greet">
+        {greeting()}
+        {name ? `, ${name}` : ""}.
+      </p>
+      <h1 className="mag-title">{resuming ? "One more chapter?" : "Enter your next story."}</h1>
+    </header>
   );
 }
 
@@ -109,60 +156,85 @@ function Featured({ ctx }: { ctx: RankContext }) {
   const q = useBrowse({ order: "popular", limit: 30 });
   const [i, setI] = useState(0);
   const lib = useUser((s) => s.library);
+  const progress = useUser((s) => s.progress);
   const items = useMemo(() => {
     const withCover = (q.data?.items ?? []).filter((t) => t.cover);
     const described = withCover.filter((t) => t.meta?.description);
     return rerankRow(described.length >= 3 ? described : withCover, ctx).slice(0, 5);
   }, [q.data, ctx]);
+  const t = items.length ? items[Math.min(i, items.length - 1)] : undefined;
+  const chapters = useChapters(t);
   if (q.isError && !q.data) return <ErrorState error={q.error} retry={() => void q.refetch()} />;
   if (q.data && !items.length) return null;
-  if (!items.length)
+  if (!t)
     return (
-      <div className="hero" aria-busy="true">
-        <div className="cover skeleton" />
-        <div>
+      <div className="feature panel" aria-busy="true" aria-label="Loading featured title">
+        <div className="feature-cover">
+          <div className="cover skeleton" />
+        </div>
+        <div className="feature-body">
           <div className="skeleton skeleton-line" style={{ width: "30%" }} />
-          <div className="skeleton" style={{ height: 32, width: "70%", marginTop: 12 }} />
-          <div className="skeleton skeleton-line" style={{ width: "90%" }} />
+          <div className="skeleton" style={{ height: 30, width: "80%", marginTop: 12 }} />
+          <div className="skeleton skeleton-line" style={{ width: "95%" }} />
+          <div className="skeleton skeleton-line" style={{ width: "70%" }} />
         </div>
       </div>
     );
-  const t = items[Math.min(i, items.length - 1)]!;
   const inLib = Boolean(lib.get(t.key)?.status);
+  const p = progress.get(t.key);
+  const first = chapters.data?.chapters[0];
+  const genres = (t.meta?.genres ?? []).slice(0, 3);
+  const read = p ? { to: readerPath(t, p.chapterId, p.page || undefined), label: `Continue ch. ${p.chapterNumber}` } : first ? { to: readerPath(t, first.id), label: "Read now" } : { to: titlePath(t), label: "View series" };
   return (
-    <section aria-roledescription="carousel" aria-label="Featured">
-      <div className="hero">
-        <div className="hero-bg" aria-hidden="true">
-          {t.cover && <img src={t.cover} alt="" />}
+    <section className="feature-wrap" aria-roledescription="carousel" aria-label="Featured series">
+      <div className="feature panel" key={t.key}>
+        <div className="feature-art" aria-hidden="true">
+          <img src={t.cover} alt="" loading="eager" decoding="async" referrerPolicy="no-referrer" />
         </div>
-        <Link to={titlePath(t)} aria-label={t.title}>
-          <Cover src={t.cover} large={t.coverLarge} title={t.title} eager sizes="(min-width: 768px) 180px, 112px" />
+        <Link to={titlePath(t)} className="feature-cover" aria-label={t.title} tabIndex={-1}>
+          <Cover src={t.cover} large={t.coverLarge} title={t.title} eager sizes="(min-width: 768px) 190px, 118px" />
         </Link>
-        <div>
-          <div className="eyebrow">{[kindLabel(t.meta?.kind), statusLabel(t.meta?.status), t.meta?.year].filter(Boolean).join(" · ")}</div>
-          <h2 data-long={t.title.length > 48 ? "" : undefined}>
+        <div className="feature-body">
+          <div className="feature-kicker">
+            <Kicker n={String(i + 1).padStart(2, "0")}>Featured</Kicker>
+            <span className="feature-facts">{[kindLabel(t.meta?.kind), statusLabel(t.meta?.status), t.meta?.year].filter(Boolean).join(" · ")}</span>
+          </div>
+          <h2 className="feature-title" data-long={t.title.length > 40 ? "" : undefined}>
             <Link to={titlePath(t)}>{t.title}</Link>
           </h2>
-          {t.meta?.description && <p className="hero-desc">{t.meta.description}</p>}
+          {t.meta?.description && <p className="feature-desc">{t.meta.description}</p>}
+          {genres.length > 0 && (
+            <div className="feature-tags">
+              {genres.map((g) => (
+                <span className="tag" key={g}>
+                  {g}
+                </span>
+              ))}
+              {t.latestChapter ? <ChapterNo n={t.latestChapter} prefix="Latest" /> : null}
+            </div>
+          )}
         </div>
-        <div className="hero-actions">
-          <Link className="btn btn-primary btn-lg" to={titlePath(t)}>
-            <BookOpen size={18} /> View series
+        <div className="feature-actions">
+          <Link className="btn btn-primary btn-lg" to={read.to} aria-busy={chapters.isLoading && !p}>
+            <BookOpen size={18} /> {read.label}
           </Link>
           <button
             className="btn btn-lg"
+            aria-pressed={inLib}
             onClick={() => {
               void setStatus(t, inLib ? undefined : "plan");
               toast(inLib ? "Removed from library" : "Added to Plan to read");
             }}
           >
-            <Plus size={18} /> {inLib ? "In library" : "Plan to read"}
+            {inLib ? <Check size={18} /> : <Plus size={18} />} {inLib ? "In library" : "Plan to read"}
           </button>
         </div>
       </div>
-      <div className="hero-dots" role="group" aria-label="Choose featured title">
+      <div className="feature-pager" role="group" aria-label="Choose featured title">
         {items.map((x, n) => (
-          <button key={x.key} aria-label={`Show ${x.title}`} aria-current={n === i} onClick={() => setI(n)} />
+          <button key={x.key} aria-label={`Show ${x.title}`} aria-current={n === i} onClick={() => setI(n)}>
+            <span className="tabular">{String(n + 1).padStart(2, "0")}</span>
+          </button>
         ))}
       </div>
     </section>
@@ -170,32 +242,32 @@ function Featured({ ctx }: { ctx: RankContext }) {
 }
 
 function ContinueReading() {
-  const progress = useUser((s) => s.progress);
   const titles = useUser((s) => s.titles);
   const state = useUser((s) => s);
   const list = useMemo(() => continueList(state).slice(0, 12), [state]);
   if (!list.length) return null;
-  void progress;
   return (
     <Row id="continue" title="Continue reading" more="/history" className="continue-row">
       {list.map((p) => {
         const t = titles.get(p.titleKey);
         if (!t) return null;
-        const left = t.latestChapter ? Math.max(0, t.latestChapter - p.chapterNumber) : undefined;
+        const left = t.latestChapter ? Math.max(0, Math.floor(t.latestChapter - p.chapterNumber)) : undefined;
+        const pct = Math.round(p.fraction * 100);
         return (
-          <Link key={p.titleKey} className="continue-card" to={readerPath(t, p.chapterId, p.page || undefined)}>
-            <Cover src={t.cover} title={t.title} />
-            <span style={{ minWidth: 0 }}>
-              <span className="title" style={{ display: "block" }}>
-                {t.title}
+          <Link key={p.titleKey} className="continue-card" to={readerPath(t, p.chapterId, p.page || undefined)} aria-label={`Resume ${t.title}, chapter ${p.chapterNumber}, ${pct}% read`}>
+            <Cover src={t.cover} title={t.title} sizes="64px" />
+            <span className="continue-body">
+              <span className="title">{t.title}</span>
+              <span className="continue-meta">
+                <ChapterNo n={p.chapterNumber} />
+                {left ? <span className="continue-left">{left} new</span> : null}
               </span>
-              <span className="card-meta">
-                Ch. {p.chapterNumber}
-                {left ? ` · ${left} new` : ""}
+              <span className="progress-bar" aria-hidden="true">
+                <i style={{ width: `${pct}%` }} />
               </span>
-              <span className="progress-bar" style={{ display: "block", marginTop: 8 }} aria-label={`${Math.round(p.fraction * 100)}% through chapter`}>
-                <i style={{ width: `${Math.round(p.fraction * 100)}%` }} />
-              </span>
+            </span>
+            <span className="continue-go" aria-hidden="true">
+              <Play size={16} fill="currentColor" />
             </span>
           </Link>
         );
@@ -305,6 +377,7 @@ function SomethingDifferent({ ctx, pool }: { ctx: RankContext; pool: Title[] }) 
 
 export default function Home() {
   const profile = useUser((s) => s.profile);
+  const resuming = useUser((s) => continueList(s).length > 0);
   const ctx = useRankContext();
   const pickCtx = useRankContext({ excludeLibrary: true });
   const pool = usePools(pickCtx);
@@ -334,48 +407,42 @@ export default function Home() {
     nav(titlePath(pick.title), { state: { reason: pick.reason?.text ?? "Surprise pick" } });
   };
   return (
-    <div className="page">
-      <h1 className="sr-only">Dawghwa home</h1>
-      <div className="home-top">
-        <div>
-          <Featured ctx={ctx} />
-        </div>
-        <aside className="side-panel" aria-label="Quick actions">
-          <h2>Not sure what to read?</h2>
-          <p className="muted" style={{ fontSize: "var(--text-sm)", marginBottom: 12 }}>
-            Surprise Me picks one title from the catalogue using your taste, with a little randomness.
-          </p>
-          <div className="cluster">
-            <button className="btn btn-primary" onClick={doSurprise}>
-              <Dices size={17} /> Surprise me
-            </button>
-            <button
-              className="btn"
-              onClick={async () => {
-                await qc.invalidateQueries({ queryKey: ["browse"] });
-                setSeed((n) => n + 1);
-                toast("Feed refreshed");
-              }}
-            >
-              <RefreshCw size={16} /> Refresh
-            </button>
-          </div>
-          <hr className="divider" style={{ margin: "16px 0" }} />
-          <Link className="side-link" to="/search?q=completed%20romance%20with%20fewer%20than%20100%20chapters" style={{ display: "flex", gap: 10, alignItems: "center", minHeight: 40 }}>
-            <Sparkles size={16} /> Short completed romance
-          </Link>
-          <Link className="side-link" to="/search?q=completed%20fantasy%20manhwa" style={{ display: "flex", gap: 10, alignItems: "center", minHeight: 40 }}>
-            <Play size={16} /> Completed fantasy manhwa
-          </Link>
-        </aside>
+    <div className="page home">
+      <MagazineHead name={profile?.name} resuming={resuming} />
+      <Featured ctx={ctx} />
+      <nav className="mood-strip" aria-label="Quick picks">
+        <button className="mood mood-lime" onClick={doSurprise}>
+          <Dices size={17} /> Surprise me
+        </button>
+        <Link className="mood" to="/search?q=completed%20romance%20with%20fewer%20than%20100%20chapters">
+          <Sparkles size={16} /> Short completed romance
+        </Link>
+        <Link className="mood" to="/search?q=completed%20fantasy%20manhwa">
+          <CheckCircle2 size={16} /> Completed fantasy
+        </Link>
+        <Link className="mood" to="/discover?order=latest">
+          <Timer size={16} /> Fresh chapters
+        </Link>
+        <button
+          className="mood"
+          onClick={async () => {
+            await qc.invalidateQueries({ queryKey: ["browse"] });
+            setSeed((n) => n + 1);
+            toast("Feed refreshed");
+          }}
+        >
+          <RefreshCw size={16} /> Refresh feed
+        </button>
+      </nav>
+      <div className="feed">
+        <ContinueReading />
+        <PickedForYou ctx={pickCtx} pool={pool.items} seed={seed} />
+        <BecauseYouRead ctx={pickCtx} />
+        {sections.slice(0, shownCount).map((d, i) => (
+          <CatalogueSection key={`${d.id}-${seed}`} def={d} ctx={ctx} claims={claims} order={i} />
+        ))}
+        <SomethingDifferent ctx={pickCtx} pool={pool.items} />
       </div>
-      <ContinueReading />
-      <PickedForYou ctx={pickCtx} pool={pool.items} seed={seed} />
-      <BecauseYouRead ctx={pickCtx} />
-      {sections.slice(0, shownCount).map((d, i) => (
-        <CatalogueSection key={`${d.id}-${seed}`} def={d} ctx={ctx} claims={claims} order={i} />
-      ))}
-      <SomethingDifferent ctx={pickCtx} pool={pool.items} />
       <div ref={more} />
       {shownCount < sections.length && (
         <div style={{ marginTop: 32 }}>
@@ -385,14 +452,10 @@ export default function Home() {
         </div>
       )}
       {shownCount >= sections.length && (
-        <div className="section">
-          <div className="inline-state">
-            <Sparkles size={18} />
-            <span style={{ flex: 1 }}>That's the whole home feed. Explore every filter in Discover.</span>
-            <Link className="btn btn-sm" to="/discover">
-              Discover
-            </Link>
-          </div>
+        <div className="feed-end">
+          <MascotSays variant="head" size={72}>
+            That's the whole issue. Lost in another world? <Link to="/discover">Discover</Link> has every shelf.
+          </MascotSays>
         </div>
       )}
     </div>
