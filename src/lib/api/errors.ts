@@ -61,7 +61,7 @@ export class ApiError extends Error {
       case "timeout":
         return "This is taking too long. The source may be slow right now.";
       case "network":
-        return "Couldn't reach the Dawghwa API.";
+        return "Couldn't connect. Check your connection and try again.";
       case "aborted":
         return "Request cancelled.";
       case "parse":

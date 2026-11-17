@@ -509,6 +509,7 @@ export default function Search() {
               <h2 className="hits-then">Matching your description</h2>
             </section>
           )}
+          {!(active.isError && !items.length) && (
           <div className="result-head">
             <p className="result-count" aria-live="polite">
               {active.data ? (items.length ? `${items.length}${structured && intentQ.data?.hasMore ? "+" : ""} ${items.length === 1 ? "title" : "titles"}` : "No titles") : active.isError ? (online ? "Couldn't search" : "Offline") : online ? "Searching..." : "Offline"}
@@ -521,6 +522,7 @@ export default function Search() {
               ))}
             </select>
           </div>
+          )}
           {structured && intentQ.data && (intentQ.data.seed || intentQ.data.seedMissing || local.length > 0 || intentQ.data.downgraded.length > 0) && (
             <p className="muted result-note">
               {intentQ.data.seed ? `Ranked by similarity to ${intentQ.data.seed.title}. ` : ""}

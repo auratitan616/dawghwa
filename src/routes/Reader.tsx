@@ -506,8 +506,7 @@ export default function Reader() {
         <div className="rd-titles">
           <span className="rd-series">{title?.title ?? (t.isError ? "Reader" : "Loading…")}</span>
           <span className="rd-chapter">
-            {chapter ? `Chapter ${chapter.number}${chapter.title ? `: ${chapter.title}` : ""}` : ""}
-            {chapter?.group ? ` · ${chapter.group.name}` : ""} · via {sourceName}
+            {[chapter ? `Chapter ${chapter.number}${chapter.title ? `: ${chapter.title}` : ""}` : "", chapter?.group?.name, `via ${prettySource(sourceName)}`].filter(Boolean).join(" · ")}
           </span>
         </div>
         {list.length > 1 && (
@@ -684,4 +683,10 @@ function measureAnchor(root: HTMLElement): { page: number; offset: number } | nu
     if (r.bottom > 0) return { page: Number(el.dataset.index), offset: r.height ? Math.max(0, -r.top) / r.height : 0 };
   }
   return null;
+}
+
+/** Source ids ("mangadex") read as names ("MangaDex") when the source list hasn't loaded. */
+function prettySource(name: string): string {
+  const known: Record<string, string> = { mangadex: "MangaDex", anilist: "AniList", comick: "ComicK", mangapill: "MangaPill" };
+  return known[name.toLowerCase()] ?? (name.charAt(0).toUpperCase() + name.slice(1));
 }

@@ -351,7 +351,7 @@ export default function Profile() {
       </section>
 
       <p className="muted" style={{ fontSize: "var(--text-xs)", marginTop: 24 }}>
-        <Link to="/about">About Dawghwa and credits</Link>
+        <Link className="footer-link" to="/about">About Dawghwa and credits</Link>
       </p>
 
       <Sheet open={newOpen} onClose={() => setNewOpen(false)} title="New profile">

@@ -13,7 +13,7 @@ const DEFAULT = ["Fantasy", "Action", "Romance", "Drama", "Comedy", "Thriller", 
  * Each tab is a real /api/browse query (genre, most followed); the profile's
  * chosen genres are moved to the front.
  */
-export function CategoryShelf({ ctx, preferred = [] }: { ctx: RankContext; preferred?: string[] }) {
+export function CategoryShelf({ ctx, preferred = [], quiet = false }: { ctx: RankContext; preferred?: string[]; quiet?: boolean }) {
   const genres = useMemo(() => [...new Set([...preferred.filter((g) => DEFAULT.includes(g)), ...DEFAULT])], [preferred]);
   const [genre, setGenre] = useState(genres[0]!);
   const id = useId();
@@ -31,6 +31,8 @@ export function CategoryShelf({ ctx, preferred = [] }: { ctx: RankContext; prefe
     tabs.current?.querySelector<HTMLButtonElement>(`[data-g="${CSS.escape(g)}"]`)?.focus();
   };
 
+  // when the whole catalogue is down the page shows one banner; this shelf steps aside
+  if (quiet && q.isError && !q.data) return null;
   return (
     <section className="section cat-shelf" aria-labelledby={`${id}-h`}>
       <div className="section-head">
