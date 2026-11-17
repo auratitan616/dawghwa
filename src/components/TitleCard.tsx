@@ -83,7 +83,7 @@ export const TitleCard = memo(function TitleCard({ title: t, reason, rank, conte
         <MoreHorizontal size={18} />
       </button>
       <Link to={href} className="card-link" onMouseEnter={() => prefetchTitle(t)} onFocus={() => prefetchTitle(t)} {...press}>
-        {t.meta?.status === "completed" && <span className="card-badge">Completed</span>}
+        {t.meta?.status === "completed" && <span className="card-badge sticker sticker-lavender">Done</span>}
         <Cover src={t.cover} large={t.coverLarge} title={t.title} eager={eager} />
         {progress && (
           <div className="progress-bar" aria-label={progress.label}>

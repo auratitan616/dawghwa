@@ -4,7 +4,7 @@ const config: CapacitorConfig = {
   appId: "app.dawghwa",
   appName: "Dawghwa",
   webDir: "dist",
-  backgroundColor: "#0d0c0b",
+  backgroundColor: "#151519",
   android: {
     // Images come from https hosts only; no mixed content.
     allowMixedContent: false,
@@ -18,7 +18,7 @@ const config: CapacitorConfig = {
     SplashScreen: {
       launchShowDuration: 1200,
       launchAutoHide: false,
-      backgroundColor: "#0d0c0b",
+      backgroundColor: "#151519",
       androidScaleType: "CENTER_INSIDE",
       showSpinner: false,
       splashFullScreen: false,

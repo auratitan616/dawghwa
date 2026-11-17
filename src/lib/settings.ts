@@ -89,7 +89,7 @@ export function reducedMotion(): boolean {
   return window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
 }
 
-const BG = { dark: "#0e0d0c", light: "#f6f2ea" };
+const BG = { dark: "#151519", light: "#F5F0E7" };
 
 export function applyTheme() {
   if (typeof document === "undefined") return;
