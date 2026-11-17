@@ -7,7 +7,7 @@ import { Sheet } from "@/components/Layer";
 import type { BrowseOrder, BrowseQuery, MangaKind } from "@/lib/api/types";
 import { TitleCard } from "@/components/TitleCard";
 import { TitleGrid } from "@/components/Grid";
-import { EmptyState, ErrorState, GridSkeleton } from "@/components/States";
+import { EmptyState, ErrorState, GridSkeleton, RowSkeleton } from "@/components/States";
 import { Cover } from "@/components/Cover";
 import { parseIntent, type Intent } from "@/lib/search/intent";
 import { runIntent } from "@/lib/search/run";
@@ -436,7 +436,7 @@ export default function Search() {
               </ul>
             </section>
           )}
-          {(trending.data?.items.length ?? 0) > 0 && (
+          {!trending.isError && (!trending.data || trending.data.items.length > 0) && (
             <section className="section" aria-labelledby="trend-h">
               <div className="section-head">
                 <div className="section-titles">
@@ -447,11 +447,15 @@ export default function Search() {
                   See all
                 </Link>
               </div>
-              <div className="row-track">
-                {trending.data!.items.slice(0, 10).map((t, n) => (
-                  <TitleCard key={t.key} title={t} context="trending" rank={n + 1} />
-                ))}
-              </div>
+              {trending.data ? (
+                <div className="row-track">
+                  {trending.data.items.slice(0, 10).map((t, n) => (
+                    <TitleCard key={t.key} title={t} context="trending" rank={n + 1} />
+                  ))}
+                </div>
+              ) : (
+                <RowSkeleton count={6} />
+              )}
             </section>
           )}
           <section className="section" aria-labelledby="cat-h">
