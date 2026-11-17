@@ -48,6 +48,8 @@ export interface ProgressRecord {
   pageCount: number;
   /** 0..1 position inside the chapter (scroll fraction in vertical mode). */
   fraction: number;
+  /** Vertical mode: how far (0..1 of its height) the top page is scrolled past the viewport top. */
+  offset?: number;
   /** chapterId -> time it was finished (reached the end). */
   read: Record<string, number>;
   /** Highest chapter number finished. */

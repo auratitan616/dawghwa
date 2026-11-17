@@ -3494,3 +3494,5 @@ fieldset legend { padding: 0; margin-bottom: var(--space-2); }
   object-fit: cover;
 }
 .search-home { display: block; }
+.title-hits { margin-bottom: var(--space-2); }
+.hits-then { margin-top: var(--space-8); font-size: var(--text-lg); font-weight: 800; }

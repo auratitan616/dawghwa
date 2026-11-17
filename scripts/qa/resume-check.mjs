@@ -1,0 +1,23 @@
+// QA: vertical reader resume. Scrolls deep into a chapter, leaves, comes back via "Continue", and reports the drift.
+import { chromium } from "playwright";
+const base = process.env.BASE || "http://localhost:4173";
+const reader = process.argv[2];
+const browser = await chromium.launch();
+const ctx = await browser.newContext({ serviceWorkers: "block", viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
+await ctx.route((u) => !u.hostname.includes("localhost") && !u.hostname.includes("fonts"), async (route) => { try { const r = await fetch(route.request().url()); await route.fulfill({ status: r.status, contentType: r.headers.get("content-type") ?? "image/jpeg", body: Buffer.from(await r.arrayBuffer()) }); } catch { await route.abort(); } });
+const page = await ctx.newPage();
+await page.goto(base + "/welcome");
+await page.getByRole("button", { name: "Skip" }).click();
+await page.waitForTimeout(500);
+await page.goto(base + reader);
+await page.waitForTimeout(6000);
+console.log("pages", await page.locator(".rd-page").count(), "height", await page.evaluate(() => document.body.scrollHeight)); await page.evaluate(() => scrollTo(0, 3000)); await page.waitForTimeout(700); await page.evaluate(() => scrollTo(0, 7200));
+await page.waitForTimeout(2500);
+const before = await page.evaluate(() => { const els = [...document.querySelectorAll(".rd-page")]; const el = els.find((e) => e.getBoundingClientRect().bottom > 0); const r = el.getBoundingClientRect(); return { y: scrollY, idx: el.dataset.index, into: Math.round(-r.top) }; });
+await page.goto(base + "/");
+await page.waitForTimeout(1500);
+await page.goto(base + reader);
+await page.waitForTimeout(9000);
+const after = await page.evaluate(() => { const els = [...document.querySelectorAll(".rd-page")]; const el = els.find((e) => e.getBoundingClientRect().bottom > 0); const r = el.getBoundingClientRect(); return { y: scrollY, idx: el.dataset.index, into: Math.round(-r.top) }; });
+console.log(JSON.stringify({ before, after }));
+await browser.close();

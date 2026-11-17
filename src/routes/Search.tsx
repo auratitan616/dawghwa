@@ -276,9 +276,13 @@ export default function Search() {
     queryFn: ({ signal }) => runIntent(intent, { signal, want: 36, seed: seedQ.data ?? undefined }),
     staleTime: 10 * 60_000,
   });
-  const textQ = useBrowse(q && !structured ? { query: q, order: "relevance", limit: 40 } : null);
+  // The literal title search always runs, so a title that happens to contain intent words
+  // ("Tower of God", "Romance Dawn") is never replaced by a genre browse.
+  const textQ = useBrowse(q.length >= 2 ? { query: q, order: "relevance", limit: 40 } : null);
   const textItems = useMemo(() => (textQ.data?.items ?? []).map((t, i) => ({ t, s: textScore(t, q) * 2 - i / 40 })).sort((a, b) => b.s - a.s).map((x) => x.t), [textQ.data, q]);
-  const items = (structured ? intentQ.data?.items : textItems)?.filter((t) => !ctx.exclude?.has(t.key)) ?? [];
+  const titleHits = useMemo(() => (structured ? textItems.filter((t) => textScore(t, q) >= 0.75).slice(0, 6) : []), [structured, textItems, q]);
+  const hitKeys = new Set(titleHits.map((t) => t.key));
+  const items = (structured ? intentQ.data?.items?.filter((t) => !hitKeys.has(t.key)) : textItems)?.filter((t) => !ctx.exclude?.has(t.key)) ?? [];
   const active = structured ? intentQ : textQ;
   const local = intent.chips.filter((c) => c.where === "local");
 
@@ -480,6 +484,17 @@ export default function Search() {
 
       {hasQuery && (
         <div style={{ marginTop: 8 }}>
+          {titleHits.length > 0 && (
+            <section className="section title-hits" aria-labelledby="hits-h">
+              <div className="section-head">
+                <div className="section-titles">
+                  <h2 id="hits-h">Titles matching "{q}"</h2>
+                </div>
+              </div>
+              <TitleGrid items={titleHits} context="search-title" />
+              <h2 className="hits-then">Matching your description</h2>
+            </section>
+          )}
           <div className="result-head">
             <p className="result-count" aria-live="polite">
               {active.data ? (items.length ? `${items.length}${structured && intentQ.data?.hasMore ? "+" : ""} ${items.length === 1 ? "title" : "titles"}` : "No titles") : "Searching..."}
