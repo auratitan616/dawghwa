@@ -134,7 +134,7 @@ function Featured({ ctx }: { ctx: RankContext }) {
         </Link>
         <div>
           <div className="eyebrow">{[kindLabel(t.meta?.kind), statusLabel(t.meta?.status), t.meta?.year].filter(Boolean).join(" · ")}</div>
-          <h2>
+          <h2 data-long={t.title.length > 48 ? "" : undefined}>
             <Link to={titlePath(t)}>{t.title}</Link>
           </h2>
           <p className="hero-desc">{t.meta?.description}</p>

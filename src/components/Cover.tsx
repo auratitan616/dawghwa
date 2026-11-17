@@ -13,7 +13,7 @@ export function Cover({ src, large, title, eager, sizes = "160px", className = "
     <div className={`cover ${className}`}>
       {broken ? (
         <div className="cover-fallback" aria-hidden="true">
-          {title}
+          <span className="cover-fallback-text">{title}</span>
         </div>
       ) : (
         <img

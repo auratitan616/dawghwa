@@ -24,6 +24,7 @@ const ORDERS: [BrowseOrder, string][] = [
   ["year", "Release year"],
 ];
 const cap = (s: string) => s[0]!.toUpperCase() + s.slice(1);
+const TAG_GROUP_LABELS: Record<string, string> = { genre: "Genres", theme: "Themes", format: "Style & format tags", content: "Content tags" };
 const list = (p: URLSearchParams, k: string) => (p.get(k) ?? "").split(",").filter(Boolean);
 
 /** Catalogue browser. Every filter maps 1:1 to a server-side /api/browse filter. */
@@ -124,9 +125,10 @@ export default function Discover() {
         </div>
       </fieldset>
       {vocab.isError && <ErrorState error={vocab.error} retry={() => void vocab.refetch()} compact />}
+      {tagGroups.length > 0 && <p className="muted filter-hint">Tags: tap once to include, again to exclude, a third time to clear.</p>}
       {tagGroups.map(([group, names]) => (
         <fieldset key={group}>
-          <legend className="eyebrow">{cap(group)}s · tap once to include, twice to exclude</legend>
+          <legend className="eyebrow">{TAG_GROUP_LABELS[group] ?? `${cap(group)} tags`}</legend>
           <div className="chips">
             {names.map((n) => {
               const s = tri(n);

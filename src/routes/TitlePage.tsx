@@ -40,7 +40,7 @@ function ChapterList({ title, chapters, readable, sourceName }: { title: Title; 
     <section aria-labelledby="chapters-h">
       <div className="section-head">
         <div>
-          <h2 id="chapters-h">{chapters.length.toLocaleString()} chapters</h2>
+          <h2 id="chapters-h">{chapters.length.toLocaleString()} {chapters.length === 1 ? "chapter" : "chapters"}</h2>
           <p>
             {readCount ? `${readCount} read · ` : ""}
             {readable ? `Read in Dawghwa via ${sourceName}` : `Chapters open on ${sourceName}`}
