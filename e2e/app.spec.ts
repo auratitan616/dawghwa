@@ -94,8 +94,8 @@ test("title page never widens the phone viewport and keeps the read CTA on scree
     await page.goto("/title/mangadex/77bee52c-d2d6-44ad-a33a-1734c1fe696a");
     await expect(page.getByRole("heading", { level: 1 })).toBeVisible({ timeout: 20_000 });
     await expect(page.locator(".tp-cta")).toBeInViewport({ timeout: 20_000 });
-    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
+    expect(await page.evaluate<number>("document.documentElement.scrollWidth")).toBeLessThanOrEqual(width);
     await page.getByRole("tab", { name: /About/ }).click();
-    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
+    expect(await page.evaluate<number>("document.documentElement.scrollWidth")).toBeLessThanOrEqual(width);
   }
 });
