@@ -1,8 +1,9 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Link, useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { ArrowDownUp, BookOpen, Check, ExternalLink, Heart, Library, MoreHorizontal, Share2, Sparkles, Star, ThumbsDown, ThumbsUp, Users } from "lucide-react";
 import { Cover } from "@/components/Cover";
 import { Row } from "@/components/Row";
+import { ChapterNo, Kicker, Sticker } from "@/components/Editorial";
 import { TitleCard } from "@/components/TitleCard";
 import { Sheet } from "@/components/Layer";
 import { EmptyState, ErrorState } from "@/components/States";
@@ -39,7 +40,8 @@ function ChapterList({ title, chapters, readable, sourceName }: { title: Title; 
   return (
     <section aria-labelledby="chapters-h">
       <div className="section-head">
-        <div>
+        <div className="section-titles">
+          <Kicker>Chapters</Kicker>
           <h2 id="chapters-h">{chapters.length.toLocaleString()} {chapters.length === 1 ? "chapter" : "chapters"}</h2>
           <p>
             {readCount ? `${readCount} read · ` : ""}
@@ -64,17 +66,21 @@ function ChapterList({ title, chapters, readable, sourceName }: { title: Title; 
           const idx = start + i;
           const isRead = Boolean(read[c.id]);
           const meta = [c.group?.name, c.lastUpdated].filter(Boolean).join(" · ");
+          const isCurrent = progress?.chapterId === c.id;
           const inner = (
             <>
-              <span className="ch-title">
-                Chapter {c.number}
-                {c.title ? `: ${c.title}` : ""}
+              <ChapterNo n={c.number} />
+              <span className="ch-body">
+                <span className="ch-title">
+                  {c.title || `Chapter ${c.number}`}
+                  {isCurrent && !isRead && <Sticker tone="accent">Reading</Sticker>}
+                </span>
+                <span className="ch-meta">{meta}</span>
               </span>
-              <span className="ch-meta">{meta}</span>
             </>
           );
           return (
-            <div key={c.id} className="chapter" role="listitem" style={{ top: idx * ROW_H }} data-read={isRead || undefined} data-current={progress?.chapterId === c.id || undefined}>
+            <div key={c.id} className="chapter" role="listitem" style={{ top: idx * ROW_H }} data-read={isRead || undefined} data-current={isCurrent || undefined}>
               {readable ? (
                 <Link to={readerPath(title, c.id)}>{inner}</Link>
               ) : (
@@ -83,7 +89,7 @@ function ChapterList({ title, chapters, readable, sourceName }: { title: Title; 
                 </a>
               )}
               <button className="icon-btn" aria-label={isRead ? `Mark chapter ${c.number} unread` : `Mark chapter ${c.number} read`} aria-pressed={isRead} onClick={() => void markChaptersRead(title, [c], !isRead)}>
-                {isRead ? <Check size={18} /> : progress?.chapterId === c.id ? <span className="dot" /> : <Check size={18} style={{ opacity: 0.25 }} />}
+                {isRead ? <Check size={18} /> : isCurrent ? <span className="dot" /> : <Check size={18} style={{ opacity: 0.25 }} />}
               </button>
             </div>
           );
@@ -108,7 +114,7 @@ function MoreLikeThis({ title }: { title: Title }) {
   }, [q.data, title, ctx.exclude]);
   if (items.length < 4) return null;
   return (
-    <Row id="similar" title="More like this" subtitle="Shares its genres, themes and format" more={similarPath(title)}>
+    <Row id="similar" title="More like this" subtitle="Shares its genres, themes and format with this series" more={similarPath(title)}>
       {items.map((t) => (
         <TitleCard key={t.key} title={t} context="similar" />
       ))}
@@ -206,35 +212,48 @@ export default function TitlePage() {
     statusLabel(m?.status),
     m?.year ? String(m.year) : undefined,
     m?.demographic && m.demographic !== "none" ? m.demographic[0]!.toUpperCase() + m.demographic.slice(1) : undefined,
-  ].filter(Boolean);
+  ].filter(Boolean) as string[];
+  const readCount = progress ? chs.filter((c) => progress.read[c.id]).length : 0;
+  const stats = [
+    title.rating ? { label: "Rating", value: title.rating.toFixed(2), icon: <Star size={14} aria-hidden="true" /> } : null,
+    title.follows ? { label: "Followers", value: compactNumber(title.follows), icon: <Users size={14} aria-hidden="true" /> } : null,
+    lastNum ? { label: "Latest", value: String(Math.floor(lastNum)), icon: null } : null,
+    readCount ? { label: "Read", value: String(readCount), icon: <Check size={14} aria-hidden="true" /> } : null,
+  ].filter(Boolean) as { label: string; value: string; icon: ReactNode }[];
 
   return (
     <div className="page">
       <div className="title-page">
         <aside className="title-aside">
           <div className="title-hero">
-            <Cover src={title.cover} large={title.coverLarge} title={title.title} eager sizes="(min-width: 1024px) 300px, 120px" />
+            <Cover src={title.cover} large={title.coverLarge} title={title.title} eager sizes="(min-width: 1024px) 300px, 132px" />
             <div className="title-hero-text">
+              {facts.length > 0 && (
+                <p className="title-kicker">
+                  {facts.map((f, i) => (
+                    <span key={f} className={i === 0 ? "title-kind" : undefined}>
+                      {f}
+                    </span>
+                  ))}
+                </p>
+              )}
               <h1>{title.title}</h1>
               {m?.altTitles?.length ? <p className="alt-titles">{m.altTitles.slice(0, 3).join(" · ")}</p> : null}
-              <div className="facts">
-                {facts.map((f) => (
-                  <span key={f}>{f}</span>
-                ))}
-                {title.rating ? (
-                  <span>
-                    <Star size={14} aria-hidden="true" /> {title.rating.toFixed(2)}
-                  </span>
-                ) : null}
-                {title.follows ? (
-                  <span>
-                    <Users size={14} aria-hidden="true" /> {compactNumber(title.follows)}
-                  </span>
-                ) : null}
-                {lastNum ? <span>{Math.floor(lastNum)} ch.</span> : null}
-              </div>
             </div>
           </div>
+          {stats.length > 0 && (
+            <dl className="stat-strip" style={{ ["--n" as string]: stats.length }}>
+              {stats.map((x) => (
+                <div key={x.label}>
+                  <dt>{x.label}</dt>
+                  <dd>
+                    {x.icon}
+                    {x.value}
+                  </dd>
+                </div>
+              ))}
+            </dl>
+          )}
           <div className="title-actions">
             {readable && target ? (
               <Link className="btn btn-primary btn-lg" to={readerPath(title, target.id, current === target && progress?.page ? progress.page : undefined)}>
@@ -250,7 +269,7 @@ export default function TitlePage() {
               </a>
             )}
             <button className="btn btn-lg" onClick={() => setStatusOpen(true)} aria-label={status ? `Library: ${STATUS_LABELS[status]}` : "Add to library"} aria-haspopup="dialog">
-              <Library size={18} /> <span className="hide-sm">{status ? STATUS_LABELS[status] : "Add"}</span>
+              <Library size={18} /> <span>{status ? STATUS_LABELS[status] : "Add to library"}</span>
             </button>
             <button
               className="btn btn-lg"
@@ -267,7 +286,17 @@ export default function TitlePage() {
               <MoreHorizontal size={18} />
             </button>
           </div>
-          <div className="cluster">
+          {readCount > 0 && chs.length > 0 && (
+            <div className="title-progress" aria-label={`${readCount} of ${chs.length} chapters read`}>
+              <span className="title-progress-bar">
+                <span style={{ width: `${Math.min(100, (readCount / chs.length) * 100)}%` }} />
+              </span>
+              <span className="title-progress-label">
+                {readCount} / {chs.length} read
+              </span>
+            </div>
+          )}
+          <div className="cluster react-bar">
             <button className="btn btn-sm" aria-pressed={lib?.rating === 1} onClick={() => void rate(title, lib?.rating === 1 ? undefined : 1)}>
               <ThumbsUp size={15} /> {lib?.rating === 1 ? "Liked" : "Like"}
             </button>
@@ -297,7 +326,8 @@ export default function TitlePage() {
             </p>
           )}
           {m?.description && (
-            <div>
+            <section className="title-section" aria-label="Synopsis">
+              <Kicker>Story</Kicker>
               <p className="synopsis" data-clamped={clamp || undefined}>
                 {m.description}
               </p>
@@ -306,7 +336,7 @@ export default function TitlePage() {
                   {clamp ? "Read more" : "Show less"}
                 </button>
               )}
-            </div>
+            </section>
           )}
           {(m?.genres?.length || m?.themes?.length) && (
             <div className="chips" aria-label="Tags">
@@ -317,28 +347,28 @@ export default function TitlePage() {
               ))}
             </div>
           )}
-          {(m?.authors?.length || m?.artists?.length) && (
-            <dl className="facts" style={{ marginTop: 0 }}>
-              {m?.authors?.length ? (
-                <span>
-                  <dt className="muted">Story</dt> <dd>{m.authors.join(", ")}</dd>
-                </span>
-              ) : null}
-              {m?.artists?.length ? (
-                <span>
-                  <dt className="muted">Art</dt> <dd>{m.artists.join(", ")}</dd>
-                </span>
-              ) : null}
-              <span>
-                <dt className="muted">Source</dt>{" "}
-                <dd>
-                  <a href={title.url} target="_blank" rel="noopener noreferrer">
-                    {sourceName}
-                  </a>
-                </dd>
-              </span>
-            </dl>
-          )}
+          <dl className="credits">
+            {m?.authors?.length ? (
+              <div>
+                <dt>Story</dt>
+                <dd>{m.authors.join(", ")}</dd>
+              </div>
+            ) : null}
+            {m?.artists?.length ? (
+              <div>
+                <dt>Art</dt>
+                <dd>{m.artists.join(", ")}</dd>
+              </div>
+            ) : null}
+            <div>
+              <dt>Source</dt>
+              <dd>
+                <a href={title.url} target="_blank" rel="noopener noreferrer">
+                  {sourceName} <ExternalLink size={12} aria-hidden="true" />
+                </a>
+              </dd>
+            </div>
+          </dl>
           {chapters.isError ? (
             <ErrorState error={chapters.error} retry={() => void chapters.refetch()} compact />
           ) : chapters.isLoading ? (
