@@ -102,6 +102,15 @@ export interface StreamSummary {
   durationMs: number;
 }
 
+export interface ChapterVariant {
+  sourceId: string;
+  source: string;
+  providerChapterId: string;
+  url: string;
+  group?: { id: string; name: string; url?: string };
+  lastUpdated?: string;
+}
+
 export interface Chapter {
   id: string;
   number: number;
@@ -109,6 +118,25 @@ export interface Chapter {
   url: string;
   lastUpdated?: string;
   group?: { id: string; name: string; url?: string };
+  /** Provider-specific readable editions grouped under this chapter entry. */
+  variants?: ChapterVariant[];
+}
+
+export interface UnifiedChaptersResponse {
+  title: { ref: string; title: string; altTitles?: string[] };
+  chapters: {
+    key: string;
+    number: number;
+    title?: string;
+    language: string | null;
+    languageVerified: boolean;
+    matchConfidence: "possible" | "source-only";
+    variants: ChapterVariant[];
+  }[];
+  totalChapters: number;
+  sources: { sourceId: string; source: string; status: "ok" | "error" | "unavailable"; chapterCount: number; error?: string }[];
+  skipped: { sourceId: string; source: string; status: string; state: string; reason: string }[];
+  summary: { readerCapableSources: number; matchedReaderSources: number; chapterSourcesSucceeded: number; chapterSourcesFailed: number; truncated: boolean; [key: string]: unknown };
 }
 
 export interface ChaptersResponse {
