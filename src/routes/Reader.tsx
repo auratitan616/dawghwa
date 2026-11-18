@@ -88,7 +88,7 @@ export default function Reader() {
   const activeChapterId = selectedVariant?.providerChapterId ?? chapterId;
   const src = sources.data?.find((s) => s.id === activeSource);
   const readable = Boolean(selectedVariant);
-  const pagesQ = usePages(activeSource, activeChapterId, settings.dataSaver, readable, selectedVariant?.url);
+  const pagesQ = usePages(activeSource, activeChapterId, settings.dataSaver, readable, selectedVariant?.url, pageRefreshKey);
   const mode = useReaderMode(title);
   const rtl = settings.direction === "rtl" && mode !== "vertical";
   const pages = useMemo(() => pagesQ.data?.pages ?? [], [pagesQ.data]);
@@ -109,6 +109,7 @@ export default function Reader() {
   }, [chList]);
   const [ratios, setRatios] = useState<Record<number, number>>({});
   const [failures, setFailures] = useState(0);
+  const [pageRefreshKey, setPageRefreshKey] = useState(0);
   const [reachedEnd, setReachedEnd] = useState(false);
   const [endView, setEndView] = useState(false);
   const [countdown, setCountdown] = useState<number | null>(null);
@@ -125,6 +126,7 @@ export default function Reader() {
     setReachedEnd(false);
     setEndView(false);
     setFailures(0);
+    setPageRefreshKey(0);
     setRatios({});
     restored.current = false;
     pageRefreshAt.current = 0;
@@ -386,9 +388,9 @@ export default function Reader() {
     // page manifest at most once per 15 seconds rather than retrying a dead URL.
     if (activeSource === "mangadex" && Date.now() - pageRefreshAt.current > 15_000) {
       pageRefreshAt.current = Date.now();
-      void pagesQ.refetch();
+      setPageRefreshKey((key) => key + 1);
     }
-  }, [activeSource, pagesQ.refetch]);
+  }, [activeSource]);
 
   // auto-advance: countdown on the end panel
   useEffect(() => {
