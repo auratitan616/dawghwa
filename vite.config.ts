@@ -30,13 +30,13 @@ export default defineConfig(({ mode }) => {
               options: { cacheName: "fonts", expiration: { maxEntries: 20 } },
             },
             {
-              // Cover art: immutable per file name on MangaDex; bounded cache.
-              urlPattern: ({ url }) => url.hostname === "uploads.mangadex.org" && url.pathname.startsWith("/covers/"),
+              // Cover art through the API relay (/api/image): immutable per MangaDex file name; bounded cache.
+              urlPattern: ({ url }) => url.pathname === "/api/image" && url.searchParams.get("url")?.startsWith("https://uploads.mangadex.org/covers/") === true,
               handler: "CacheFirst",
               options: {
                 cacheName: "covers",
                 expiration: { maxEntries: 600, maxAgeSeconds: 14 * 24 * 3600, purgeOnQuotaError: true },
-                cacheableResponse: { statuses: [0, 200] },
+                cacheableResponse: { statuses: [200] },
               },
             },
           ],

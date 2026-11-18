@@ -20,6 +20,7 @@ import { getCachedTitles } from "@/lib/store/db";
 import { useUser } from "@/lib/store/user";
 import { useRankContext } from "@/lib/feed/context";
 import { fromResult, titlePath, type Title, isMature } from "@/lib/titles";
+import { coverSrc } from "@/lib/api/images";
 
 const KINDS: [MangaKind, string][] = [
   ["manhwa", "Manhwa"],
@@ -187,7 +188,7 @@ function CategoryTile({ label, to, q }: { label: string; to: string; q: BrowseQu
       <Link className="cat-tile" to={to}>
         <span className="cat-tile-label">{label}</span>
         <span className="cat-tile-art" aria-hidden="true">
-          {t?.cover ? <img src={t.cover} alt="" loading="lazy" decoding="async" referrerPolicy="no-referrer" /> : <span className="skeleton" />}
+          {t?.cover ? <img src={coverSrc(t.cover)} alt="" loading="lazy" decoding="async" referrerPolicy="no-referrer" /> : <span className="skeleton" />}
         </span>
       </Link>
     </li>

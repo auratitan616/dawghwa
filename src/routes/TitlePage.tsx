@@ -19,6 +19,7 @@ import { compactNumber, kindLabel, markUnreadable, plainText, readerPath, status
 import { useWindowVirtual } from "@/lib/useWindowVirtual";
 import { share, haptic } from "@/lib/platform";
 import type { Chapter } from "@/lib/api/types";
+import { coverSrc } from "@/lib/api/images";
 
 export const STATUS_LABELS: Record<LibraryStatus, string> = { reading: "Reading", plan: "Plan to read", completed: "Completed", on_hold: "On hold", dropped: "Dropped" };
 const ROW_H = 56;
@@ -298,7 +299,7 @@ export default function TitlePage() {
     void haptic("light");
     toast(`Saved to ${STATUS_LABELS.plan}`, { label: "Undo", run: () => void setStatus(title, undefined) });
   };
-  const art = title.coverLarge ?? title.cover;
+  const art = coverSrc(title.coverLarge ?? title.cover);
 
   const cta =
     readable && target ? (

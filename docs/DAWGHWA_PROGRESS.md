@@ -58,6 +58,14 @@ Round 2 scored 8.86 (all gate categories ≥ 9, no criticals). P12 and P16 were 
 
 PR #5 merged (672311e). Production verified: the deployed bundles contain the new strings.
 
+## Fix: cover images not loading (`fix/cover-images`)
+
+User report after release: images did not load. Cause: `uploads.mangadex.org` now answers browser requests (any browser User-Agent) with a bot challenge, either `403 Bot challenge not passed` or a 302 to `mangadex.org/edge/challenge`. Every MangaDex cover in the hero, shelves, search and title pages fell back to text. Earlier QA hid this because the screenshot scripts relayed images through Node, and I wrongly put the failures down to the sandbox.
+- API PR #3 adds `GET /api/image`, a strict, CDN-cached relay for `uploads.mangadex.org/covers/...` only. Merged and checked in production: 200 `image/jpeg`, `x-vercel-cache: HIT`.
+- The app sends MangaDex covers through `coverSrc()` at render time, which also fixes covers already saved in the library. The service worker caches only 200 responses from the relay (opaque failures were cacheable before). The dead preconnect is removed.
+- Reader pages (`*.mangadex.network`) and AniList covers were never affected.
+- Verified with `scripts/qa/images-check.mjs` in a real browser with no interception. Production before: home 78 text fallbacks, 34 failed image responses. Fixed build: home 92 of 92 images decoded, search 20 of 20, title 4 of 4, 0 failures. A new e2e test checks that covers decode and that no `<img>` points at uploads.mangadex.org.
+
 ## Milestone: critic round 3 accepted, then polish (`fix/critic-round3`)
 
 Round 3 scored 9.0 overall (8.995 unrounded) and was ACCEPTED, with Blueprint 9.0, UX 9.0, Reader 9.2 and Responsive 9.4. Polish for the critic's remaining notes:
