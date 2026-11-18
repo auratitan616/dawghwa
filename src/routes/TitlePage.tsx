@@ -81,12 +81,10 @@ function ChapterList({ title, chapters, readable, sourceName }: { title: Title; 
           );
           return (
             <div key={c.id} className="chapter" role="listitem" style={{ top: idx * ROW_H }} data-read={isRead || undefined} data-current={isCurrent || undefined}>
-              {readable ? (
-                <Link to={readerPath(title, c.id, undefined, c.variants?.[0]?.sourceId)}>{inner}</Link>
+              {c.variants?.length ? (
+                <Link to={readerPath(title, c.id, undefined, c.variants[0]?.sourceId)}>{inner}</Link>
               ) : (
-                <a href={c.url} target="_blank" rel="noopener noreferrer">
-                  {inner}
-                </a>
+                <span aria-disabled="true">{inner}</span>
               )}
               <button className="icon-btn" aria-label={isRead ? `Mark chapter ${c.number} unread` : `Mark chapter ${c.number} read`} aria-pressed={isRead} onClick={() => void markChaptersRead(title, [c], !isRead)}>
                 {isRead ? <Check size={18} /> : isCurrent ? <span className="dot" /> : <Check size={18} style={{ opacity: 0.25 }} />}
@@ -303,22 +301,18 @@ export default function TitlePage() {
   const art = title.coverLarge ?? title.cover;
 
   const cta =
-    readable && target ? (
-      <Link className="btn btn-primary btn-lg tp-cta" to={readerPath(title, target.id, current === target && progress?.page ? progress.page : undefined, target.variants?.[0]?.sourceId)}>
+    chapters.isLoading ? (
+      <button className="btn btn-primary btn-lg tp-cta" disabled>
+        <BookOpen size={18} /> Finding readable chapters
+      </button>
+    ) : target?.variants?.length ? (
+      <Link className="btn btn-primary btn-lg tp-cta" to={readerPath(title, target.id, current === target && progress?.page ? progress.page : undefined, target.variants[0]?.sourceId)}>
         <BookOpen size={18} /> {progress ? startLabel : `Read chapter ${target.number}`}
       </Link>
-    ) : readable && chapters.isLoading ? (
-      <button className="btn btn-primary btn-lg tp-cta" disabled>
-        <BookOpen size={18} /> Loading chapters
-      </button>
-    ) : readable ? (
-      <Link className="btn btn-primary btn-lg tp-cta" to={`/search?q=${encodeURIComponent(title.title)}`}>
-        <Search size={18} /> Find it on other sources
-      </Link>
     ) : (
-      <a className="btn btn-primary btn-lg tp-cta" href={target?.url ?? title.url} target="_blank" rel="noopener noreferrer">
-        <ExternalLink size={18} /> Open on {sourceName}
-      </a>
+      <Link className="btn btn-primary btn-lg tp-cta" to={`/search?q=${encodeURIComponent(title.title)}`}>
+        <Search size={18} /> Find readable sources
+      </Link>
     );
 
   const chapterPanel = chapters.isError ? (
