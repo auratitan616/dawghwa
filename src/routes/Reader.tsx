@@ -390,7 +390,7 @@ export default function Reader() {
       pageRefreshAt.current = Date.now();
       setPageRefreshKey((key) => key + 1);
     }
-  }, [activeSource]);
+  }, []);
 
   // auto-advance: countdown on the end panel
   useEffect(() => {
