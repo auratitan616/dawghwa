@@ -88,7 +88,7 @@ export default function Reader() {
   const activeChapterId = selectedVariant?.providerChapterId ?? chapterId;
   const src = sources.data?.find((s) => s.id === activeSource);
   const readable = Boolean(selectedVariant);
-  const pagesQ = usePages(activeSource, activeChapterId, settings.dataSaver, readable);
+  const pagesQ = usePages(activeSource, activeChapterId, settings.dataSaver, readable, selectedVariant?.url);
   const mode = useReaderMode(title);
   const rtl = settings.direction === "rtl" && mode !== "vertical";
   const pages = useMemo(() => pagesQ.data?.pages ?? [], [pagesQ.data]);
