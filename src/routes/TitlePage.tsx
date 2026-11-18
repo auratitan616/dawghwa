@@ -43,7 +43,7 @@ function ChapterList({ title, chapters, readable, sourceName }: { title: Title; 
           <h2 id="chapters-h">{chapters.length.toLocaleString()} {chapters.length === 1 ? "chapter" : "chapters"}</h2>
           <p>
             {readCount ? `${readCount} read · ` : ""}
-            {readable ? `Read in Dawghwa via ${sourceName}` : `Chapters open on ${sourceName}`}
+            {readable ? `Read in Dawghwa · ${new Set(chapters.flatMap((c) => c.variants?.map((v) => v.sourceId) ?? [])).size || 1} sources` : `Chapters open on ${sourceName}`}
           </p>
         </div>
       </div>
@@ -63,7 +63,9 @@ function ChapterList({ title, chapters, readable, sourceName }: { title: Title; 
         {list.slice(start, end).map((c, i) => {
           const idx = start + i;
           const isRead = Boolean(read[c.id]);
-          const meta = [c.group?.name, c.lastUpdated].filter(Boolean).join(" · ");
+          const sourceCount = c.variants?.length ?? 0;
+          const sourceLabel = sourceCount > 1 ? `${sourceCount} possible source versions` : c.variants?.[0]?.source ?? sourceName;
+          const meta = [c.group?.name, sourceLabel, c.lastUpdated].filter(Boolean).join(" · ");
           const isCurrent = progress?.chapterId === c.id;
           const inner = (
             <>
@@ -80,7 +82,7 @@ function ChapterList({ title, chapters, readable, sourceName }: { title: Title; 
           return (
             <div key={c.id} className="chapter" role="listitem" style={{ top: idx * ROW_H }} data-read={isRead || undefined} data-current={isCurrent || undefined}>
               {readable ? (
-                <Link to={readerPath(title, c.id)}>{inner}</Link>
+                <Link to={readerPath(title, c.id, undefined, c.variants?.[0]?.sourceId)}>{inner}</Link>
               ) : (
                 <a href={c.url} target="_blank" rel="noopener noreferrer">
                   {inner}
@@ -178,7 +180,7 @@ export default function TitlePage() {
   const opened = useRef<string | null>(null);
 
   const src = sources.data?.find((s) => s.id === source);
-  const readable = Boolean(src?.capabilities.chapterPages);
+  const readable = Boolean(src?.capabilities.chapterPages) || Boolean(chapters.data?.chapters.some((c) => c.variants?.length));
   const sourceName = title?.sourceName ?? src?.name ?? source;
   const m = title?.meta;
 
@@ -302,7 +304,7 @@ export default function TitlePage() {
 
   const cta =
     readable && target ? (
-      <Link className="btn btn-primary btn-lg tp-cta" to={readerPath(title, target.id, current === target && progress?.page ? progress.page : undefined)}>
+      <Link className="btn btn-primary btn-lg tp-cta" to={readerPath(title, target.id, current === target && progress?.page ? progress.page : undefined, target.variants?.[0]?.sourceId)}>
         <BookOpen size={18} /> {progress ? startLabel : `Read chapter ${target.number}`}
       </Link>
     ) : readable && chapters.isLoading ? (
@@ -329,14 +331,14 @@ export default function TitlePage() {
     </div>
   ) : !chs.length ? (
     <EmptyState
-      title={`No chapters on ${sourceName}`}
+      title="No in-app chapters found"
       action={
         <button className="btn" onClick={() => nav(`/search?q=${encodeURIComponent(title.title)}`)}>
           Look for it on other sources
         </button>
       }
     >
-      {sourceName} lists this title but hosts no readable English chapters, which usually means it is officially licensed. Dawghwa only shows chapters a source actually provides.
+      None of the currently compatible providers returned chapters that Dawghwa can read in-app. This does not mean the title has no chapters; source availability can change.
     </EmptyState>
   ) : (
     <ChapterList title={title} chapters={chs} readable={readable} sourceName={sourceName} />
