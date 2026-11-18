@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
-import { ArrowLeft, Check, ChevronLeft, ChevronRight, ExternalLink, ListOrdered, RotateCw, Settings2 } from "lucide-react";
+import { ArrowLeft, Check, ChevronLeft, ChevronRight, ListOrdered, RotateCw, Settings2 } from "lucide-react";
 import { Mascot } from "@/components/Mascot";
 import { ChapterNo } from "@/components/Editorial";
 import { Sheet } from "@/components/Layer";
@@ -71,7 +71,7 @@ function useReaderMode(title: Title | undefined): Mode {
 
 export default function Reader() {
   const { source = "", id = "", chapterId = "" } = useParams();
-  const [params] = useSearchParams();
+  const [params, setParams] = useSearchParams();
   const nav = useNavigate();
   const settings = useSettings();
   const sources = useSources();
@@ -79,17 +79,20 @@ export default function Reader() {
   const title = t.data;
   const chapters = useChapters(title);
   const prog = useUser((s) => (title ? s.progress.get(title.key) : undefined));
-  const src = sources.data?.find((s) => s.id === source);
-  const readable = sources.data ? Boolean(src?.capabilities.chapterPages) : true;
-  const pagesQ = usePages(source, chapterId, settings.dataSaver, readable);
+  const list = useMemo(() => chapters.data?.chapters ?? [], [chapters.data]);
+  const idx = list.findIndex((c) => c.id === chapterId);
+  const chapter: Chapter | undefined = list[idx];
+  const preferredSource = params.get("s");
+  const selectedVariant = chapter?.variants?.find((variant) => variant.sourceId === preferredSource) ?? chapter?.variants?.[0];
+  const activeSource = selectedVariant?.sourceId ?? preferredSource ?? source;
+  const activeChapterId = selectedVariant?.providerChapterId ?? chapterId;
+  const src = sources.data?.find((s) => s.id === activeSource);
+  const readable = Boolean(selectedVariant) || (sources.data ? Boolean(src?.capabilities.chapterPages) : true);
+  const pagesQ = usePages(activeSource, activeChapterId, settings.dataSaver, readable);
   const mode = useReaderMode(title);
   const rtl = settings.direction === "rtl" && mode !== "vertical";
   const pages = useMemo(() => pagesQ.data?.pages ?? [], [pagesQ.data]);
   const count = pages.length;
-
-  const list = useMemo(() => chapters.data?.chapters ?? [], [chapters.data]);
-  const idx = list.findIndex((c) => c.id === chapterId);
-  const chapter: Chapter | undefined = list[idx];
   const prev = idx > 0 ? list[idx - 1] : undefined;
   const next = idx >= 0 ? list[idx + 1] : undefined;
 
@@ -123,7 +126,7 @@ export default function Reader() {
     setFailures(0);
     setRatios({});
     restored.current = false;
-  }, [chapterId]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [chapterId, activeSource]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // immersive system bars follow the controls
   useEffect(() => {
@@ -274,9 +277,10 @@ export default function Reader() {
     (c?: Chapter) => {
       if (!c || !title) return;
       save();
-      nav(readerPath(title, c.id), { replace: true });
+      const sourceForNext = c.variants?.find((variant) => variant.sourceId === activeSource)?.sourceId ?? c.variants?.[0]?.sourceId ?? activeSource;
+      nav(readerPath(title, c.id, undefined, sourceForNext), { replace: true });
     },
-    [nav, title, save],
+    [nav, title, save, activeSource],
   );
   const step = useCallback(
     (dir: 1 | -1) => {
@@ -396,7 +400,7 @@ export default function Reader() {
     }
   }, [mode, page, pages, count]);
 
-  const sourceName = src?.name ?? title?.sourceName ?? source;
+  const sourceName = src?.name ?? selectedVariant?.source ?? title?.sourceName ?? activeSource;
   const backTo = title ? titlePath(title) : "/";
 
   // ------------------------------------------------------------ states
@@ -404,17 +408,10 @@ export default function Reader() {
     return (
       <div className="reader reader-msg">
         <div className="state state-center">
-          <h1 style={{ fontSize: "var(--text-xl)" }}>Reading isn't available for {sourceName} in Dawghwa</h1>
-          <p>This source doesn't provide chapter pages through the Dawghwa API, so the chapter opens on the source's own site.</p>
+          <h1 style={{ fontSize: "var(--text-xl)" }}>This chapter isn't readable in Dawghwa yet</h1>
+          <p>No compatible source supplied an in-app page reader for this chapter. Choose another available chapter version from the title page.</p>
           <div className="cluster">
-            {chapter && (
-              <a className="btn btn-primary" href={chapter.url} target="_blank" rel="noopener noreferrer">
-                <ExternalLink size={16} /> Open on {sourceName}
-              </a>
-            )}
-            <Link className="btn" to={backTo}>
-              Back to title
-            </Link>
+            <Link className="btn btn-primary" to={backTo}>Back to title</Link>
           </div>
         </div>
       </div>
@@ -467,11 +464,7 @@ export default function Reader() {
     <div className="state state-center">
       <h2>This chapter has no pages</h2>
       <p>{sourceName} returned an empty chapter. It may be hosted externally.</p>
-      {chapter && (
-        <a className="btn" href={chapter.url} target="_blank" rel="noopener noreferrer">
-          <ExternalLink size={16} /> Open on {sourceName}
-        </a>
-      )}
+      <Link className="btn" to={backTo}>Back to title</Link>
     </div>
   ) : mode === "vertical" ? (
     <div className={`rd-strip ${settings.pageGap ? "rd-gap" : ""}`} ref={scroller}>
@@ -647,6 +640,34 @@ export default function Reader() {
             </span>
             <input type="checkbox" checked={settings.dataSaver} onChange={(e) => (updateSettings({ dataSaver: e.target.checked }), void haptic("light"))} />
           </label>
+          {chapter?.variants && chapter.variants.length > 1 && (
+            <label className="settings-row">
+              <span>
+                Chapter source
+                <small className="muted" style={{ display: "block" }}>Different sources may have different translations or editions.</small>
+              </span>
+              <select
+                className="input"
+                aria-label="Chapter source"
+                value={selectedVariant?.sourceId ?? ""}
+                onChange={(e) => {
+                  const nextSource = e.target.value;
+                  if (!nextSource || nextSource === activeSource) return;
+                  save();
+                  setParams((current) => {
+                    const nextParams = new URLSearchParams(current);
+                    nextParams.set("s", nextSource);
+                    nextParams.set("p", String(page));
+                    return nextParams;
+                  }, { replace: true });
+                }}
+              >
+                {chapter.variants.map((variant) => (
+                  <option key={variant.sourceId} value={variant.sourceId}>{variant.source}</option>
+                ))}
+              </select>
+            </label>
+          )}
           <p className="muted" style={{ fontSize: "var(--text-xs)" }}>
             Keys: arrows turn pages, [ and ] change chapter, M toggles controls.
           </p>
