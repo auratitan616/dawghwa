@@ -180,12 +180,13 @@ export function usePages(
   dataSaver: boolean,
   enabled: boolean,
   chapterUrl?: string,
+  refreshKey = 0,
 ) {
   return useQuery({
-    queryKey: ["pages", sourceId, chapterId, chapterUrl, dataSaver],
+    queryKey: ["pages", sourceId, chapterId, chapterUrl, dataSaver, refreshKey],
     enabled: Boolean(chapterId || chapterUrl) && enabled,
     queryFn: ({ signal }) => api.pages(
-      { source: sourceId, chapterId: chapterId!, url: chapterUrl, dataSaver },
+      { source: sourceId, chapterId: chapterId!, url: chapterUrl, dataSaver, refresh: refreshKey > 0 },
       { signal },
     ),
     staleTime: 10 * 60_000, // MangaDex@Home URLs are valid for ~15 minutes
