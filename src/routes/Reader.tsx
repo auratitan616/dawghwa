@@ -87,7 +87,7 @@ export default function Reader() {
   const activeSource = selectedVariant?.sourceId ?? preferredSource ?? source;
   const activeChapterId = selectedVariant?.providerChapterId ?? chapterId;
   const src = sources.data?.find((s) => s.id === activeSource);
-  const readable = Boolean(selectedVariant) || (sources.data ? Boolean(src?.capabilities.chapterPages) : true);
+  const readable = Boolean(selectedVariant);
   const pagesQ = usePages(activeSource, activeChapterId, settings.dataSaver, readable);
   const mode = useReaderMode(title);
   const rtl = settings.direction === "rtl" && mode !== "vertical";
@@ -408,7 +408,7 @@ export default function Reader() {
   const backTo = title ? titlePath(title) : "/";
 
   // ------------------------------------------------------------ states
-  if (sources.data && !readable)
+  if (chapters.isSuccess && !readable)
     return (
       <div className="reader reader-msg">
         <div className="state state-center">
@@ -455,7 +455,11 @@ export default function Reader() {
     </div>
   );
 
-  const body = pagesQ.isError ? (
+  const body = chapters.isError ? (
+    <div className="state state-center">
+      <ErrorState error={chapters.error} retry={() => void chapters.refetch()} />
+    </div>
+  ) : pagesQ.isError ? (
     <div className="state state-center">
       <ErrorState error={pagesQ.error} retry={() => void pagesQ.refetch()} />
       {errorText(pagesQ.error).offline && <p className="muted">Chapter pages aren't stored offline. Reconnect to keep reading.</p>}
