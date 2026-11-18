@@ -99,3 +99,14 @@ test("title page never widens the phone viewport and keeps the read CTA on scree
     expect(await page.evaluate<number>("document.documentElement.scrollWidth")).toBeLessThanOrEqual(width);
   }
 });
+
+test("home covers actually load in the browser (no direct MangaDex cover links)", async ({ page }) => {
+  test.skip(!(await apiUp(page)), "API not running");
+  await skipOnboarding(page);
+  await page.locator(".cover img").first().waitFor({ timeout: 20_000 });
+  await expect
+    .poll(async () => page.evaluate(`[...document.querySelectorAll(".cover img")].filter((i) => i.complete && i.naturalWidth > 0).length`), { timeout: 20_000 })
+    .toBeGreaterThan(3);
+  const direct = await page.evaluate(`[...document.querySelectorAll("img")].filter((i) => (i.currentSrc || i.src).startsWith("https://uploads.mangadex.org/")).length`);
+  expect(direct).toBe(0);
+});
