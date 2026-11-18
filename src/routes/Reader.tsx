@@ -384,9 +384,9 @@ export default function Reader() {
   const onLoad = useCallback((i: number, r: number) => setRatios((m) => (m[i] === r ? m : { ...m, [i]: r })), []);
   const onFail = useCallback(() => {
     setFailures((n) => n + 1);
-    // MangaDex @Home URLs expire and individual nodes can fail. Fetch a fresh
-    // page manifest at most once per 15 seconds rather than retrying a dead URL.
-    if (activeSource === "mangadex" && Date.now() - pageRefreshAt.current > 15_000) {
+    // Provider page URLs can expire or point at unhealthy CDN nodes. Fetch a
+    // fresh manifest at most once per 15 seconds rather than retrying a dead URL.
+    if (Date.now() - pageRefreshAt.current > 15_000) {
       pageRefreshAt.current = Date.now();
       setPageRefreshKey((key) => key + 1);
     }
