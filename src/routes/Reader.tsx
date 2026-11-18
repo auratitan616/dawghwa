@@ -73,6 +73,7 @@ export default function Reader() {
   const { source = "", id = "", chapterId = "" } = useParams();
   const [params, setParams] = useSearchParams();
   const nav = useNavigate();
+  const [pageRefreshKey, setPageRefreshKey] = useState(0);
   const settings = useSettings();
   const sources = useSources();
   const t = useTitle(source, id);
@@ -109,7 +110,6 @@ export default function Reader() {
   }, [chList]);
   const [ratios, setRatios] = useState<Record<number, number>>({});
   const [failures, setFailures] = useState(0);
-  const [pageRefreshKey, setPageRefreshKey] = useState(0);
   const [reachedEnd, setReachedEnd] = useState(false);
   const [endView, setEndView] = useState(false);
   const [countdown, setCountdown] = useState<number | null>(null);
