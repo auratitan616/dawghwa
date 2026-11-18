@@ -114,6 +114,7 @@ export default function Reader() {
   const [countdown, setCountdown] = useState<number | null>(null);
   const scroller = useRef<HTMLDivElement>(null);
   const restored = useRef(false);
+  const pageRefreshAt = useRef(0);
 
   useHead({ title: title ? `${title.title}${chapter ? ` · Chapter ${chapter.number}` : ""}` : "Reader", noindex: true });
 
@@ -126,6 +127,7 @@ export default function Reader() {
     setFailures(0);
     setRatios({});
     restored.current = false;
+    pageRefreshAt.current = 0;
   }, [chapterId, activeSource]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // immersive system bars follow the controls
@@ -378,7 +380,15 @@ export default function Reader() {
   };
 
   const onLoad = useCallback((i: number, r: number) => setRatios((m) => (m[i] === r ? m : { ...m, [i]: r })), []);
-  const onFail = useCallback(() => setFailures((n) => n + 1), []);
+  const onFail = useCallback(() => {
+    setFailures((n) => n + 1);
+    // MangaDex @Home URLs expire and individual nodes can fail. Fetch a fresh
+    // page manifest at most once per 15 seconds rather than retrying a dead URL.
+    if (activeSource === "mangadex" && Date.now() - pageRefreshAt.current > 15_000) {
+      pageRefreshAt.current = Date.now();
+      void pagesQ.refetch();
+    }
+  }, [activeSource, pagesQ.refetch]);
 
   // auto-advance: countdown on the end panel
   useEffect(() => {
