@@ -471,7 +471,7 @@ export default function Reader() {
   ) : !count ? (
     <div className="state state-center">
       <h2>This chapter has no readable pages</h2>
-      <p>{sourceName} did not return any pages. Try another available source version from the reader settings.
+      <p>{sourceName} did not return any pages. Try another available source version from the reader settings.</p>
       <Link className="btn" to={backTo}>Back to title</Link>
     </div>
   ) : mode === "vertical" ? (
