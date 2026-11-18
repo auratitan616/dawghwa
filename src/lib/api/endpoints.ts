@@ -54,7 +54,7 @@ export const api = {
   manga: (b: { url: string; source?: string }, o: Opt = {}) =>
     request<MangaResponse>("/api/manga", { body: b, signal: o.signal, timeoutMs: 20_000 }),
 
-  pages: (b: { source: string; chapterId: string; dataSaver?: boolean } | { url: string; dataSaver?: boolean }, o: Opt = {}) =>
+  pages: (b: { source: string; chapterId: string; url?: string; dataSaver?: boolean; refresh?: boolean } | { url: string; source?: string; chapterId?: string; dataSaver?: boolean; refresh?: boolean }, o: Opt = {}) =>
     // page URLs expire (MangaDex@Home) so the request is never de-duplicated across screens for long
     request<PagesResponse>("/api/pages", { body: b, signal: o.signal, timeoutMs: 20_000 }),
 
