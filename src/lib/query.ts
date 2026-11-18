@@ -144,7 +144,9 @@ export function useChapters(t: Pick<Title, "key" | "url" | "sourceId" | "id"> | 
           const chapters: Chapter[] = response.chapters.map((item) => {
             const primary = item.variants[0];
             return {
-              id: item.key,
+              // Prefer the title's original provider chapter id when present so
+              // existing reading-progress keys survive the aggregation rollout.
+              id: item.variants.find((variant) => variant.sourceId === t.sourceId)?.providerChapterId ?? item.key,
               number: item.number,
               title: item.title,
               url: primary?.url ?? "",
