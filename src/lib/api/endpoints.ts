@@ -5,6 +5,7 @@ import type {
   ApiIndex,
   BrowseQuery,
   ChaptersResponse,
+  UnifiedChaptersResponse,
   HealthEntry,
   MangaResponse,
   PagesResponse,
@@ -33,6 +34,22 @@ export const api = {
     b: { url: string; source?: string; order?: "source" | "asc" | "desc"; offset?: number; limit?: number },
     o: Opt = {},
   ) => request<ChaptersResponse>("/api/chapters", { body: b, signal: o.signal, timeoutMs: 40_000 }),
+
+  /** Unified, reader-capable chapters across matching providers for a metadata title. */
+  unifiedChapters: (
+    b: { source: string; id: string; limit?: number; refresh?: boolean },
+    o: Opt = {},
+  ) => {
+    const ref = encodeURIComponent(`${b.source}:${b.id}`);
+    const params = new URLSearchParams();
+    if (b.limit) params.set("limit", String(b.limit));
+    if (b.refresh) params.set("refresh", "1");
+    return request<UnifiedChaptersResponse>(`/api/titles/${ref}/chapters/all?${params.toString()}`, {
+      signal: o.signal,
+      timeoutMs: 60_000,
+      retries: 0,
+    });
+  },
 
   manga: (b: { url: string; source?: string }, o: Opt = {}) =>
     request<MangaResponse>("/api/manga", { body: b, signal: o.signal, timeoutMs: 20_000 }),
