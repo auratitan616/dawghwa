@@ -263,7 +263,11 @@ export default function Reader() {
     const tm = setTimeout(stop, 8000);
     for (const e of ["wheel", "touchstart", "keydown", "pointerdown"]) window.addEventListener(e, stop, { passive: true, once: true });
     return stop;
-  }, [mode, count, startPage, title]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [mode, count, startPage, title, activeSource]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (count > 0 && page >= count) setPage(count - 1);
+  }, [count, page]);
 
   // ------------------------------------------------------------ paged
   const spreads = useMemo(() => {
