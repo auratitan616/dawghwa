@@ -174,11 +174,20 @@ export function useChapters(t: Pick<Title, "key" | "url" | "sourceId" | "id"> | 
   });
 }
 
-export function usePages(sourceId: string, chapterId: string | undefined, dataSaver: boolean, enabled: boolean) {
+export function usePages(
+  sourceId: string,
+  chapterId: string | undefined,
+  dataSaver: boolean,
+  enabled: boolean,
+  chapterUrl?: string,
+) {
   return useQuery({
-    queryKey: ["pages", sourceId, chapterId, dataSaver],
-    enabled: Boolean(chapterId) && enabled,
-    queryFn: ({ signal }) => api.pages({ source: sourceId, chapterId: chapterId!, dataSaver }, { signal }),
+    queryKey: ["pages", sourceId, chapterId, chapterUrl, dataSaver],
+    enabled: Boolean(chapterId || chapterUrl) && enabled,
+    queryFn: ({ signal }) => api.pages(
+      { source: sourceId, chapterId: chapterId!, url: chapterUrl, dataSaver },
+      { signal },
+    ),
     staleTime: 10 * 60_000, // MangaDex@Home URLs are valid for ~15 minutes
     gcTime: 12 * 60_000,
     retry: 1,
