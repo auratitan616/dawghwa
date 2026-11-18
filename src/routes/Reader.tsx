@@ -470,8 +470,8 @@ export default function Reader() {
     </div>
   ) : !count ? (
     <div className="state state-center">
-      <h2>This chapter has no pages</h2>
-      <p>{sourceName} returned an empty chapter. It may be hosted externally.</p>
+      <h2>This chapter has no readable pages</h2>
+      <p>{sourceName} did not return any pages. Try another available source version from the reader settings.
       <Link className="btn" to={backTo}>Back to title</Link>
     </div>
   ) : mode === "vertical" ? (
