@@ -133,13 +133,40 @@ export interface ChapterList {
 }
 
 /** Full chapter list (the API caches it server-side and returns it in one response). */
-export function useChapters(t: Pick<Title, "key" | "url" | "sourceId"> | undefined) {
+export function useChapters(t: Pick<Title, "key" | "url" | "sourceId" | "id"> | undefined) {
   return useQuery({
-    queryKey: ["chapters", t?.key],
+    queryKey: ["chapters", t?.key, "unified-v1"],
     enabled: Boolean(t?.url),
     queryFn: async ({ signal }): Promise<ChapterList> => {
+      if (t && isIdAddressable(t.sourceId)) {
+        try {
+          const response = await api.unifiedChapters({ source: t.sourceId, id: t.id, limit: 64 }, { signal });
+          const chapters: Chapter[] = response.chapters.map((item) => {
+            const primary = item.variants[0];
+            return {
+              id: item.key,
+              number: item.number,
+              title: item.title,
+              url: primary?.url ?? "",
+              lastUpdated: primary?.lastUpdated,
+              group: primary?.group,
+              variants: item.variants,
+            };
+          });
+          return { chapters, total: response.totalChapters };
+        } catch (error) {
+          // Keep the deployed app usable while the matching API deployment rolls out.
+          if (!isApiError(error) || error.status !== 404) throw error;
+        }
+      }
       const r = await api.chapters({ url: t!.url, source: t!.sourceId, order: "asc" }, { signal });
-      return { chapters: r.chapters, total: r.totalChapters };
+      return {
+        chapters: r.chapters.map((chapter) => ({
+          ...chapter,
+          variants: [{ sourceId: r.sourceId, source: r.source, providerChapterId: chapter.id, url: chapter.url, group: chapter.group, lastUpdated: chapter.lastUpdated }],
+        })),
+        total: r.totalChapters,
+      };
     },
     staleTime: 10 * 60_000,
   });
