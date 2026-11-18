@@ -43,7 +43,7 @@ function ChapterList({ title, chapters, readable, sourceName }: { title: Title; 
           <h2 id="chapters-h">{chapters.length.toLocaleString()} {chapters.length === 1 ? "chapter" : "chapters"}</h2>
           <p>
             {readCount ? `${readCount} read · ` : ""}
-            {readable ? `Read in Dawghwa · ${new Set(chapters.flatMap((c) => c.variants?.map((v) => v.sourceId) ?? [])).size || 1} sources` : `Chapters open on ${sourceName}`}
+            {readable ? `Read in Dawghwa · ${new Set(chapters.flatMap((c) => c.variants?.map((v) => v.sourceId) ?? [])).size || 1} sources` : "Not available in the Dawghwa reader"}
           </p>
         </div>
       </div>
