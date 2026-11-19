@@ -5,12 +5,15 @@ import { Avatar } from "@/components/Avatar";
 import { Kicker } from "@/components/Editorial";
 import { MascotSays } from "@/components/Mascot";
 import { ProfileSkeleton } from "@/components/States";
-import { achievements, readingStats, type ReadingStats } from "@/lib/profile/stats";
+import { readingStats, type ReadingStats } from "@/lib/profile/stats";
+import { LevelMascot } from "@/components/LevelMascot";
+import { useProgression } from "@/lib/rewards";
+import { genrePath } from "@/lib/genres";
 import { Sheet } from "@/components/Layer";
 import { toast } from "@/components/Toast";
 import { useHead } from "@/lib/seo";
 import { updateSettings, useSettings } from "@/lib/settings";
-import { allCollections, createProfile, deleteProfile, switchProfile, unhideTitle, updateProfile, useUser } from "@/lib/store/user";
+import { createProfile, deleteProfile, switchProfile, unhideTitle, updateProfile, useUser } from "@/lib/store/user";
 import { isMemoryStorage } from "@/lib/store/db";
 import { downloadJson, exportProfile, importProfile } from "@/lib/store/transfer";
 import { resetIntel, useIntel } from "@/lib/intel/runtime";
@@ -94,6 +97,48 @@ function Activity({ s }: { s: ReadingStats }) {
   );
 }
 
+/** Level summary and genre passport. Shown only when Profile > Rewards is on. */
+function RewardsSummary() {
+  const { level, sets, stamps } = useProgression();
+  const earned = sets.reduce((n, x) => n + x.tier, 0);
+  const stamped = stamps.filter((x) => x.stamped).length;
+  return (
+    <>
+      <section className="profile-block level-card level-card-sm" aria-labelledby="awards-h">
+        <LevelMascot level={level} size={72} />
+        <div className="level-body">
+          <p className="level-tier">{level.tier.name}</p>
+          <h2 id="awards-h">Level {level.level}</h2>
+          <p className="muted">
+            {level.into} / {level.span} XP · {earned} badge tiers
+          </p>
+        </div>
+        <Link className="btn" to="/achievements">
+          <Award size={17} aria-hidden="true" /> Achievements
+        </Link>
+      </section>
+      <section className="profile-block" aria-labelledby="passport-h">
+        <div className="profile-block-head">
+          <h2 id="passport-h">Genre passport</h2>
+          <p className="muted">
+            {stamped} of {stamps.length} stamped · read one chapter to stamp a genre
+          </p>
+        </div>
+        <ul className="passport">
+          {stamps.map((x) => (
+            <li key={x.name} data-stamped={x.stamped || undefined}>
+              <Link to={genrePath(x.name)} aria-label={x.stamped ? `${x.name}: stamped, ${x.chapters} chapters read` : `${x.name}: not stamped yet, browse ${x.name}`}>
+                <span className="stamp-name">{x.name}</span>
+                <span className="stamp-meta">{x.stamped ? `${x.chapters} ch` : "Try it"}</span>
+              </Link>
+            </li>
+          ))}
+        </ul>
+      </section>
+    </>
+  );
+}
+
 export default function Profile() {
   const profile = useUser((s) => s.profile);
   const profiles = useUser((s) => s.profiles);
@@ -107,12 +152,9 @@ export default function Profile() {
   const [confirm, setConfirm] = useState<null | "reset" | "delete">(null);
   const progress = useUser((s) => s.progress);
   const library = useUser((s) => s.library);
-  const state = useUser((s) => s);
   const stats = useMemo(() => readingStats(progress.values(), library.values(), titles), [progress, library, titles]);
-  const awards = useMemo(() => achievements(stats, allCollections(state).length), [stats, state]);
   useHead({ title: "Profile and settings", noindex: true });
   if (!profile) return <ProfileSkeleton />;
-  const earned = awards.filter((a) => a.earned).length;
   const hasReading = stats.chaptersRead > 0 || stats.completed > 0 || stats.favourites > 0;
   return (
     <div className="page page-narrow profile-page">
@@ -170,19 +212,7 @@ export default function Profile() {
           )}
         </>
       )}
-      {settings.rewards && (
-        <section className="profile-block" aria-labelledby="awards-h">
-          <div className="profile-block-head">
-            <h2 id="awards-h">Achievements</h2>
-            <p className="muted">
-              {earned} of {awards.length} · just for fun, no streaks
-            </p>
-          </div>
-          <Link className="btn" to="/achievements">
-            <Award size={17} aria-hidden="true" /> See all achievements
-          </Link>
-        </section>
-      )}
+      {settings.rewards && <RewardsSummary />}
 
       <h2 className="settings-title" id="settings">
         Settings

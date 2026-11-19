@@ -32,7 +32,8 @@ export async function exportProfile(profileId = getUser().profile?.id): Promise<
     d.getAllFromIndex("hidden", "byProfile", profileId),
     d.getAllFromIndex("events", "byProfile", profileId),
   ]);
-  const keys = [...new Set([...library, ...progress, ...hidden].map((r) => r.titleKey))];
+  // Event titles too, so derived rewards (genre stamps) survive a round trip.
+  const keys = [...new Set([...library, ...progress, ...hidden, ...events.filter((e) => e.kind === "chapter_read" || e.kind === "title_finished")].map((r) => r.titleKey))];
   const titles = [...(await getCachedTitles(keys)).values()].map((t) => {
     const { cachedAt: _c, ...rest } = t as Title & { cachedAt?: number };
     return rest;
