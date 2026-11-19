@@ -23,6 +23,12 @@ export interface ProfileRecord {
   onboarded: boolean;
   /** Cold-start answers. Not a learned profile. */
   prefs: { genres: string[]; kinds: string[]; avoid: string[]; personalize: boolean };
+  /** Equipped cosmetics (unlocks are derived). Optional: older records have none. */
+  cosmetics?: { frame?: string; emblem?: string };
+  /** Opt-in weekly reading rhythm, in days per week. 0 or missing = off. */
+  rhythm?: number;
+  /** Seed for weekly quests. Kept on export/import so an imported profile gets the same quests (defaults to the profile id). */
+  questSeed?: string;
 }
 
 export interface LibraryRecord {

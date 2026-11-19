@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
-import { Link, Navigate, useNavigate } from "react-router-dom";
+import { Link, Navigate, useNavigate, useSearchParams } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import { CheckCircle2, Dices, Play, RefreshCw, Sparkles, Timer } from "lucide-react";
 import { Row, SectionHead } from "@/components/Row";
@@ -18,10 +18,11 @@ import { cosineSparse, vectorize } from "@/lib/intel/features";
 import { useBrowse } from "@/lib/query";
 import { clearCatalogFiltersFailure } from "@/lib/api/catalog";
 import { useHead } from "@/lib/seo";
-import { continueList, useUser } from "@/lib/store/user";
+import { continueList, signal, useUser } from "@/lib/store/user";
 import { MascotSays } from "@/components/Mascot";
 import { Brand } from "@/components/Brand";
-import { Avatar } from "@/components/Avatar";
+import { QuestStrip } from "@/components/Quests";
+import { ProfileAvatar } from "@/components/ProfileAvatar";
 import { readerPath, titlePath, type Title, isMature, isKnownUnreadable } from "@/lib/titles";
 
 const MIN_ROW = 6;
@@ -343,6 +344,15 @@ export default function Home() {
   const sections = useMemo(() => orderSections(CATALOGUE_SECTIONS, ctx.state, ctx.prefs), [ctx.state, ctx.prefs]);
   const more = useRef<HTMLDivElement>(null);
   const recentSurprises = useRef<string[]>([]);
+  const [params, setParams] = useSearchParams();
+  const surpriseRef = useRef<() => void>(() => {});
+  const wantsSurprise = params.get("surprise") === "1";
+  useEffect(() => {
+    // Quest links use /?surprise=1 to run Surprise me once the pool is ready.
+    if (!wantsSurprise || pool.loading) return;
+    setParams({}, { replace: true });
+    surpriseRef.current();
+  }, [wantsSurprise, pool.loading, setParams]);
   useHead({ title: "Dawghwa", path: "/", jsonLd: { "@context": "https://schema.org", "@type": "WebSite", name: "Dawghwa", url: location.origin, potentialAction: { "@type": "SearchAction", target: `${location.origin}/search?q={query}`, "query-input": "required name=query" } } });
   useEffect(() => {
     if (!more.current || shownCount >= sections.length) return;
@@ -358,8 +368,10 @@ export default function Home() {
       return;
     }
     recentSurprises.current = [pick.title.key, ...recentSurprises.current].slice(0, 10);
+    void signal("surprise_pick", pick.title);
     nav(titlePath(pick.title), { state: { reason: pick.reason?.text ?? "Surprise pick" } });
   };
+  surpriseRef.current = doSurprise;
   return (
     <div className="page home">
       <h1 className="sr-only">Dawghwa home</h1>
@@ -368,7 +380,7 @@ export default function Home() {
         <Brand />
         {profile && (
           <Link to="/profile" className="home-bar-avatar" aria-label={`Profile: ${profile.name}`}>
-            <Avatar name={profile.name} color={profile.color} size={32} />
+            <ProfileAvatar profile={profile} size={36} />
           </Link>
         )}
       </div>
@@ -397,6 +409,7 @@ export default function Home() {
           <RefreshCw size={16} /> Refresh feed
         </button>
       </nav>
+      <QuestStrip />
       <div className="feed">
         <ContinueReading />
         <CategoryShelf ctx={ctx} preferred={ctx.prefs?.genres} quiet={homeDown} />

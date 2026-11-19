@@ -2,12 +2,18 @@ import { Link } from "react-router-dom";
 import { Award, BookOpen, CalendarDays, Compass, Flag, FolderHeart, Heart, Layers, MessageSquare, Sparkles } from "lucide-react";
 import { Badge } from "@/components/Badge";
 import { Kicker } from "@/components/Editorial";
-import { LevelMascot, TIER_ICON } from "@/components/LevelMascot";
+import { EMBLEM_ICON, LevelMascot, TIER_ICON } from "@/components/LevelMascot";
+import { ProfileAvatar } from "@/components/ProfileAvatar";
+import { QuestList } from "@/components/Quests";
+import { Segmented } from "@/components/Segmented";
+import { EMBLEMS, FRAMES, needsLabel, unlocked, type Cosmetic } from "@/lib/rewards/cosmetics";
+import { rhythm as rhythmFor } from "@/lib/rewards/rhythm";
 import { MascotSays } from "@/components/Mascot";
 import { ProfileSkeleton } from "@/components/States";
 import { TIERS, XP, useProgression, type XpEntry } from "@/lib/rewards";
 import { updateSettings, useSettings } from "@/lib/settings";
-import { useUser } from "@/lib/store/user";
+import { updateProfile, useUser } from "@/lib/store/user";
+import type { ProfileRecord } from "@/lib/store/db";
 import { useHead } from "@/lib/seo";
 import { titlePath } from "@/lib/titles";
 
@@ -52,12 +58,83 @@ export function groupRecent(entries: XpEntry[], n: number): Moment[] {
 
 const when = (t: number) => new Date(t).toLocaleDateString(undefined, { month: "short", day: "numeric" });
 
+const DOW = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+
+/** Opt-in rhythm. Off by default; when on it counts good weeks, never a streak. */
+function RhythmCard({ target, events }: { target: number; events: Parameters<typeof rhythmFor>[0] }) {
+  const r = rhythmFor(events, target);
+  return (
+    <section className="profile-block rhythm" aria-labelledby="rhythm-h">
+      <div className="profile-block-head">
+        <h2 id="rhythm-h">Reading rhythm</h2>
+        <p className="muted">Optional. Pick a gentle weekly goal; rest days are part of it and nothing resets.</p>
+      </div>
+      <Segmented
+        label="Reading days per week"
+        value={String(target)}
+        options={[["0", "Off"], ["2", "2 days"], ["3", "3 days"], ["5", "5 days"]]}
+        onChange={(v) => void updateProfile({ rhythm: Number(v) })}
+      />
+      {target > 0 && (
+        <>
+          <ol className="rhythm-week" aria-label="This week">
+            {r.week.map((d, i) => (
+              <li key={d.date} data-read={d.read || undefined} data-future={d.future || undefined}>
+                <span className="rhythm-dot" aria-hidden="true" />
+                <span>{DOW[i]}</span>
+                <span className="sr-only">{d.read ? "read" : d.future ? "still ahead" : "rest day"}</span>
+              </li>
+            ))}
+          </ol>
+          <p className="muted">
+            {r.daysThisWeek >= target ? `Rhythm reached this week (${r.daysThisWeek} days).` : `${r.daysThisWeek} of ${target} days this week. Any days count.`} {r.weeksMet} {r.weeksMet === 1 ? "week" : "weeks"} with your rhythm so far.
+          </p>
+        </>
+      )}
+    </section>
+  );
+}
+
+function Cosmetics({ quests, level, equipped, profile }: { quests: number; level: number; equipped: { frame?: string; emblem?: string }; profile: ProfileRecord }) {
+  const equip = (c: Cosmetic) => void updateProfile({ cosmetics: { ...equipped, [c.kind]: c.id } });
+  const row = (c: Cosmetic) => {
+    const open = unlocked(c, quests, level);
+    const on = (equipped[c.kind] ?? (c.kind === "frame" ? "none" : "tier")) === c.id;
+    const Icon = c.kind === "emblem" ? (EMBLEM_ICON[c.id] ?? TIER_ICON.pup) : null;
+    return (
+      <li key={c.id}>
+        <button className="cosmetic" aria-pressed={on} disabled={!open} onClick={() => equip(c)} aria-label={open ? `${c.name}${on ? ", equipped" : ""}` : `${c.name}, locked: ${needsLabel(c)}`}>
+          <span className="cosmetic-art" aria-hidden="true">
+            {c.kind === "frame" ? <ProfileAvatar profile={profile} size={44} frame={c.id} /> : Icon && <span className="level-emblem cosmetic-emblem" data-tier={c.id === "tier" ? "tier" : c.id}><Icon size={18} aria-hidden /></span>}
+          </span>
+          <span className="cosmetic-name">{c.name}</span>
+          <span className="cosmetic-need">{on ? "Equipped" : open ? "Tap to wear" : needsLabel(c)}</span>
+        </button>
+      </li>
+    );
+  };
+  return (
+    <section className="profile-block" aria-labelledby="cosmetics-h">
+      <div className="profile-block-head">
+        <h2 id="cosmetics-h">Cosmetics</h2>
+        <p className="muted">Earned with quests and levels. Purely for looks.</p>
+      </div>
+      <h3 className="cosmetic-group">Avatar frames</h3>
+      <ul className="cosmetic-grid">{FRAMES.map(row)}</ul>
+      <h3 className="cosmetic-group">Mascot accessories</h3>
+      <ul className="cosmetic-grid">{EMBLEMS.map(row)}</ul>
+    </section>
+  );
+}
+
 /** Achievements (bottom-nav "Awards"). Everything here is derived from reading already stored on this device. */
 export default function Achievements() {
   const ready = useUser((s) => s.ready);
   const titles = useUser((s) => s.titles);
   const { rewards } = useSettings();
-  const { level, sets, ledger } = useProgression();
+  const { level, sets, ledger, quests } = useProgression();
+  const profile = useUser((s) => s.profile);
+  const events = useUser((s) => s.events);
   useHead({ title: "Achievements", noindex: true });
   if (!ready) return <ProfileSkeleton />;
   if (!rewards)
@@ -78,7 +155,7 @@ export default function Achievements() {
       </header>
 
       <section className="level-card" aria-labelledby="level-h">
-        <LevelMascot level={level} size={104} />
+        <LevelMascot level={level} size={104} emblem={profile?.cosmetics?.emblem} />
         <div className="level-body">
           <p className="level-tier">{level.tier.name}</p>
           <h2 id="level-h">Level {level.level}</h2>
@@ -106,6 +183,19 @@ export default function Achievements() {
         })}
       </ol>
 
+      <section className="profile-block" id="quests" aria-labelledby="quests-h">
+        <div className="profile-block-head">
+          <h2 id="quests-h">This week's quests</h2>
+          <p className="muted">New quests every Monday. Unfinished ones simply go away; nothing is lost.</p>
+        </div>
+        <QuestList quests={quests.current} />
+        <p className="muted quest-total">
+          {quests.done.length} {quests.done.length === 1 ? "quest" : "quests"} completed in total
+        </p>
+      </section>
+
+      {profile && <RhythmCard target={profile.rhythm ?? 0} events={events} />}
+
       <section aria-labelledby="sets-h">
         <div className="profile-block-head">
           <h2 id="sets-h">Badges</h2>
@@ -121,6 +211,8 @@ export default function Achievements() {
           ))}
         </ul>
       </section>
+
+      {profile && <Cosmetics quests={quests.done.length} level={level.level} equipped={profile.cosmetics ?? {}} profile={profile} />}
 
       {recent.length > 0 && (
         <section className="profile-block" aria-labelledby="xp-recent-h">

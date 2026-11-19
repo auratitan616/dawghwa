@@ -7,6 +7,7 @@ import { ErrorState } from "@/components/States";
 import { toast } from "@/components/Toast";
 import { useRankContext } from "@/lib/feed/context";
 import { surprise } from "@/lib/intel/rank";
+import { signal } from "@/lib/store/user";
 import { useBrowse, useVocabulary } from "@/lib/query";
 import { titlePath, type Title, isMature } from "@/lib/titles";
 
@@ -98,6 +99,7 @@ export function DiscoverHub() {
       return;
     }
     recent.current = [pick.title.key, ...recent.current].slice(0, 10);
+    void signal("surprise_pick", pick.title);
     nav(titlePath(pick.title), { state: { reason: pick.reason?.text ?? "Surprise pick" } });
   };
 
