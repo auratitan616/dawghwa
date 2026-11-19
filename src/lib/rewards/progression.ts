@@ -188,7 +188,7 @@ export function achievementSets({ ledger: l, library, collections, quests = 0, c
     makeSet("favourites", "Keeper", "Series in Favourites", lib.filter((r) => r.favorite).length, [1, 10, 30], ["favourite", "favourites"]),
     makeSet("collections", "Curator", "Collections you made", collections, [1, 3, 6], ["collection", "collections"]),
     makeSet("quests", "Quest hound", "Weekly quests completed", quests, [1, 5, 20], ["quest", "quests"]),
-    makeSet("comments", "Margin notes", "Chapter comments you wrote", comments, [1, 10, 50], ["comment", "comments"]),
+    makeSet("comments", "Margin notes", "Chapters you left a comment on", comments, [1, 10, 50], ["chapter", "chapters"]),
   ];
 }
 

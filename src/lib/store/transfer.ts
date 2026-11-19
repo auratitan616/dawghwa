@@ -1,6 +1,7 @@
-import { cacheTitles, db, getCachedTitles, type EventRecord, type Hidden, type LibraryRecord, type ProfileRecord, type ProgressRecord } from "./db";
+import { cacheTitles, db, getCachedTitles, type CommentRecord, type EventRecord, type Hidden, type LibraryRecord, type ProfileRecord, type ProgressRecord } from "./db";
 import { getUser, newProfile, switchProfile } from "./user";
 import type { Title } from "../titles";
+import { MAX_COMMENT } from "../comments";
 
 /**
  * Profile export / import as a portable JSON document. This is also the
@@ -9,13 +10,15 @@ import type { Title } from "../titles";
  */
 export interface ProfileExport {
   format: "dawghwa-profile";
-  version: 1;
+  /** 1: original. 2: adds `comments`. Both import. */
+  version: 1 | 2;
   exportedAt: string;
   profile: Omit<ProfileRecord, "id">;
   library: Omit<LibraryRecord, "profileId">[];
   progress: Omit<ProgressRecord, "profileId">[];
   hidden: Omit<Hidden, "profileId">[];
   events: Omit<EventRecord, "profileId">[];
+  comments?: Omit<CommentRecord, "profileId">[];
   titles: Title[];
 }
 
@@ -26,11 +29,12 @@ export async function exportProfile(profileId = getUser().profile?.id): Promise<
   const d = await db();
   const profile = await d.get("profiles", profileId);
   if (!profile) throw new Error("Profile not found");
-  const [library, progress, hidden, events] = await Promise.all([
+  const [library, progress, hidden, events, comments] = await Promise.all([
     d.getAllFromIndex("library", "byProfile", profileId),
     d.getAllFromIndex("progress", "byProfile", profileId),
     d.getAllFromIndex("hidden", "byProfile", profileId),
     d.getAllFromIndex("events", "byProfile", profileId),
+    d.getAllFromIndex("comments", "byProfile", profileId),
   ]);
   // Event titles too, so derived rewards (genre stamps) survive a round trip.
   const keys = [...new Set([...library, ...progress, ...hidden, ...events.filter((e) => e.kind === "chapter_read" || e.kind === "title_finished")].map((r) => r.titleKey))];
@@ -39,12 +43,12 @@ export async function exportProfile(profileId = getUser().profile?.id): Promise<
     return rest;
   });
   const { id: _id, ...p } = profile;
-  return { format: "dawghwa-profile", version: 1, exportedAt: new Date().toISOString(), profile: p, library: strip(library), progress: strip(progress), hidden: strip(hidden), events: strip(events), titles };
+  return { format: "dawghwa-profile", version: 2, exportedAt: new Date().toISOString(), profile: p, library: strip(library), progress: strip(progress), hidden: strip(hidden), events: strip(events), comments: strip(comments), titles };
 }
 
 function isExport(x: unknown): x is ProfileExport {
   const o = x as ProfileExport;
-  return Boolean(o && o.format === "dawghwa-profile" && o.version === 1 && o.profile && Array.isArray(o.library) && Array.isArray(o.progress) && Array.isArray(o.events));
+  return Boolean(o && o.format === "dawghwa-profile" && (o.version === 1 || o.version === 2) && o.profile && Array.isArray(o.library) && Array.isArray(o.progress) && Array.isArray(o.events));
 }
 
 /** Import as a new profile (never merges into or overwrites an existing one). */
@@ -60,12 +64,14 @@ export async function importProfile(json: string): Promise<ProfileRecord> {
   const profile: ProfileRecord = { ...base, name: `${data.profile.name || "Imported"}`.slice(0, 40), color: data.profile.color || base.color, onboarded: true, prefs: { ...base.prefs, ...data.profile.prefs }, cosmetics: data.profile.cosmetics, rhythm: data.profile.rhythm };
   const pid = profile.id;
   const d = await db();
-  const tx = d.transaction(["profiles", "library", "progress", "hidden", "events"], "readwrite");
+  const tx = d.transaction(["profiles", "library", "progress", "hidden", "events", "comments"], "readwrite");
   await tx.objectStore("profiles").put(profile);
   for (const r of data.library) await tx.objectStore("library").put({ ...r, collections: r.collections ?? [], profileId: pid });
   for (const r of data.progress) await tx.objectStore("progress").put({ ...r, read: r.read ?? {}, profileId: pid });
   for (const r of data.hidden ?? []) await tx.objectStore("hidden").put({ ...r, profileId: pid });
   for (const r of data.events) await tx.objectStore("events").put({ ...r, profileId: pid });
+  for (const r of Array.isArray(data.comments) ? data.comments : [])
+    if (r && typeof r.id === "string" && typeof r.chapterId === "string" && typeof r.body === "string") await tx.objectStore("comments").put({ ...r, body: r.body.slice(0, MAX_COMMENT), profileId: pid });
   await tx.done;
   await cacheTitles((data.titles ?? []).filter((t) => t && typeof t.key === "string" && typeof t.title === "string"));
   await switchProfile(pid);
