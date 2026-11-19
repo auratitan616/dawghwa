@@ -316,9 +316,10 @@ function RewardsSummary() {
         <ul className="passport">
           {stamps.map((x) => (
             <li key={x.name} data-stamped={x.stamped || undefined}>
-              <Link to={genrePath(x.name)} aria-label={x.stamped ? `${x.name}: stamped, ${x.chapters} chapters read` : `${x.name}: not stamped yet, browse ${x.name}`}>
+              <Link to={genrePath(x.name)}>
                 <span className="stamp-name">{x.name}</span>
                 <span className="stamp-meta">{x.stamped ? `${x.chapters} ch` : "Try it"}</span>
+                <span className="sr-only">{x.stamped ? ", stamped" : ", not stamped yet"}</span>
               </Link>
             </li>
           ))}

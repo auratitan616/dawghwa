@@ -13,6 +13,9 @@ Dawghwa does not host content and contains no scrapers or source adapters. All c
 - One title page per series: chapters from every linked provider (verified for the native reader: MangaDex, Dynasty Reader, WEBTOON) are merged into one list, with a per-chapter version picker showing provider, translation group, edition and language. See [docs/UNIFIED_READER.md](docs/UNIFIED_READER.md).
 - Native reader for every chapter in that list: vertical, single and double page, long strip, RTL/LTR, resume, bookmarks, fullscreen, auto-next. If a provider fails, the reader switches to the same chapter in the same language and edition from another provider and says so; it never changes chapter, language or edition on its own. A chapter is marked read only when its last page is reached.
 - Library, history, multiple isolated profiles, export/import, all stored locally in IndexedDB.
+- Rewards (optional, Profile > Rewards): XP from first chapter completions, levels with collie tiers, tiered achievements, a genre passport, three local weekly quests with cosmetic rewards, and a chapter-end reward beat. Re-reading never adds XP. Turning it off hides all of it.
+- Local readers: a mascot-guided onboarding, a "Who's reading?" screen, and an optional 4-digit PIN per reader (a privacy curtain, not encryption). Also a monthly recap and a shareable reader card image.
+- Reader: scroll-only, with a fixed top bar holding the chapter title, a progress line and a comments button. Comments are stored on the device per chapter.
 - PWA: offline app shell, update prompt, cover caching. Chapter pages are not cached for offline reading.
 
 ## Develop

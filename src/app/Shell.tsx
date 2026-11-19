@@ -187,7 +187,7 @@ export function Shell() {
       </div>
       <nav className="bottomnav" aria-label="Primary">
         {NAV.map(({ to, label, icon: Icon, end, aria }) => (
-          <NavLink key={to} to={to} end={end} aria-label={aria}>
+          <NavLink key={to} to={to} end={end} aria-label={aria ? `${label}: ${aria}` : undefined}>
             <span className="nav-ico">
               <Icon size={21} strokeWidth={2} />
             </span>

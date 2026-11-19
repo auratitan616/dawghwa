@@ -52,3 +52,6 @@ Everything is derived; nothing about XP, levels or badges is stored.
 - Vitest: API client, intent parser, feed, recommender + evaluation, store (progress rules, profile isolation, export/import).
 - Playwright (`e2e/`): Pixel 7 and desktop projects against the production build.
 - CI (`.github/workflows/ci.yml`): typecheck, lint, unit, build, e2e, debug APK artifact.
+- Accessibility: `e2e/a11y.spec.ts` runs an axe-core audit of every core route in both themes and fails on serious/critical WCAG A/AA issues (D35). The same file checks that Rewards off hides every gamification surface (D37).
+- Onboarding and sign-in: `e2e/onboarding.spec.ts` covers creating a reader with a PIN, signing out, a wrong PIN, unlocking, and the first quest.
+- Rewards logic: `src/lib/rewards/*.test.ts` covers XP, levels, quests, farm-proofing (re-reading never adds XP) and export/import round-trips that keep the same quests and XP; `accounts.test.ts` and `recap.test.ts` cover PINs and the monthly recap.

@@ -45,7 +45,8 @@ test("reader opens a supported chapter without marking it read", async ({ page, 
   // Position is saved after a short debounce (and on pause/pagehide).
   await page.waitForTimeout(1500);
   await page.goto("/history");
-  await expect(page.getByText(/page 1 of/)).toBeVisible();
+  // Near the top (tall first pages can leave it on page 2 after the wheel settles).
+  await expect(page.getByText(/page [12] of/)).toBeVisible();
   // Opened but not finished: the chapter must not count as read.
   await expect(page.getByText(/read$/i)).toHaveCount(0);
 });
