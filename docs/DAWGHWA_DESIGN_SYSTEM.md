@@ -47,7 +47,7 @@ The blueprint (WEBTOON-style screens, see `docs/DAWGHWA_AUDIT.md`) sets the stru
 | Title page (header, centred cover, tabs, sticky CTA, About sheet) | `src/routes/TitlePage.tsx` (`.tp*`) | Title, About sheet |
 | Search landing (trending row, category tiles) | `src/routes/Search.tsx` | "What Everyone's Searching", "Browse Categories" |
 | Library tabs and scope | `src/routes/Library.tsx` (`.lib-tabs`, `.lib-scope`) | My Series |
-| Onboarding chips, Next (n), finding splash | `src/routes/Onboarding.tsx` (`.onboard-*`) | Onboarding |
+| Onboarding: mascot speech bubble, genre tiles with checks, colour swatches, progress dots, sticky footer, ready screen | `src/routes/Onboarding.tsx` (`.onboard-*`, `.ob-tile`, `.ob-ready`) | Onboarding (PDF pp. 9-14) |
 | Sheets, menu rows (56/64px), radio dots | `src/components/Layer.tsx`, `.menu-item`, `.radio-dot` | Bottom sheets |
 | Toast with Undo | `src/components/Toast.tsx` | "Subscribed to your list" |
 | Empty, error and offline states; `ProfileSkeleton`, `ListSkeleton` | `src/components/States.tsx` | Centred empty copy |
@@ -61,6 +61,9 @@ The blueprint (WEBTOON-style screens, see `docs/DAWGHWA_AUDIT.md`) sets the stru
 | Reader top bar, end panel, reward beat | `src/routes/Reader.tsx` (`.rd-top`, `.rd-end`, `.rd-beat`) | n/a |
 | Series progress ring on cards | `ProgressRing` + `useSeriesFraction` (`.card-ring`, `.continue-ring`) | n/a |
 | Achievements page | `src/routes/Achievements.tsx` (`.ach-*`, `.badge-grid`) | n/a |
+| Sign-in ("Who's reading?", PIN pad) | `src/components/SignIn.tsx` (`.signin*`) | n/a |
+| Monthly recap | `src/routes/Profile.tsx` (`.recap*`) | n/a |
+| Reader card sheet and PNG | `src/lib/profile/card.ts`, `Profile.tsx` (`.reader-card*`) | n/a |
 
 ## Layout breakpoints
 
@@ -73,3 +76,7 @@ The blueprint (WEBTOON-style screens, see `docs/DAWGHWA_AUDIT.md`) sets the stru
 - Mature covers (provider content rating of suggestive or adult, or Ecchi-type genres) are blurred by default. Profile > "Show mature covers" turns the blur off. The hero never features these titles.
 - Error copy never shows raw HTTP status text.
 - Counts and progress are shown only when both sides are known. Totals are never guessed.
+
+## Accessibility checks
+
+Every control has an accessible name that contains its visible text (WCAG 2.5.3), touch targets are at least 44px, and colour pairs meet AA in both themes. `e2e/a11y.spec.ts` enforces this with axe-core on every core route. Use a `.sr-only` suffix rather than an `aria-label` that replaces visible text.

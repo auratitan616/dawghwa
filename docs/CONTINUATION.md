@@ -30,6 +30,25 @@ Mission docs: `DAWGHWA_AUDIT.md`, `DAWGHWA_DESIGN_SYSTEM.md`, `DAWGHWA_IMPLEMENT
 - Repository variable `DAWGHWA_API_URL=https://dawghwaapi.vercel.app` is set. CI run 44002866188 passed: live e2e 16/16 (none skipped), and the debug APK was built with that URL (bundle check step), artifact `dawghwa-debug-apk`, 5.3 MB. Not yet run on a device.
 - Last verified: `tsc -b`, `eslint --max-warnings 0`, `vite build`, `vitest run` (45 tests) all pass.
 
+## Gamification and UX programme (Phases 0-6)
+
+| Phase | PR | Contents |
+| --- | --- | --- |
+| 0 Audit | #11 | `docs/UX_GAMIFICATION_AUDIT.md`, before screenshots in `docs/audit/before/` |
+| 1 Foundations | #12 | Motion tokens, Celebrate, ProgressRing, Badge, skeletons, no top bar, Awards tab, Rewards toggle |
+| 2 Progression | #13 | XP ledger, levels and tiers, achievement sets, genre passport |
+| 3 Quests | #14 | Seeded weekly quests, cosmetics, opt-in rhythm with rest days |
+| 4 Reading flow | #16 | Scroll-only reader, fixed top bar, comments (DB v2), reward beat, series rings |
+| 5 Profile and onboarding | #17 | Local sign-in and PIN, mascot onboarding, first quest, recap, reader card |
+| 6 Hardening | see PR | axe gate, rewards-off test, accessible-name fixes, Lighthouse, docs |
+
+Phase 6 verification (local, production build):
+- Unit tests: 121 passed. Typecheck and lint (0 warnings) are clean.
+- e2e: 27 passed, 11 skipped (the live-provider suite runs only with `npm run e2e:live`). The axe audit has 0 serious or critical violations on 9 screens x 2 themes x 2 viewports.
+- Lighthouse 12, `/welcome`: mobile performance 89, accessibility 100, best practices 100, CLS 0, LCP 3.2 s (simulated slow 4G). Desktop: 100/100/100, LCP 0.7 s. SEO is 54 by design (noindex, plus no `SITE_URL` locally; see D38).
+- Initial JS: 143.8 KB gzip (budget about 145).
+- The debug APK artifact `dawghwa-debug-apk` (6.5 MB) is built by the CI `android` job. It has not been installed on a device.
+
 ## Known environment notes
 
 - In this sandbox the headless browser gets 502/403 for `uploads.mangadex.org`; `scripts/qa/screenshots.mjs` relays images through Node for QA only. Real browsers are unaffected by this relay.

@@ -103,7 +103,7 @@ function Cosmetics({ quests, level, equipped, profile }: { quests: number; level
     const Icon = c.kind === "emblem" ? (EMBLEM_ICON[c.id] ?? TIER_ICON.pup) : null;
     return (
       <li key={c.id}>
-        <button className="cosmetic" aria-pressed={on} disabled={!open} onClick={() => equip(c)} aria-label={open ? `${c.name}${on ? ", equipped" : ""}` : `${c.name}, locked: ${needsLabel(c)}`}>
+        <button className="cosmetic" aria-pressed={on} disabled={!open} onClick={() => equip(c)}>
           <span className="cosmetic-art" aria-hidden="true">
             {c.kind === "frame" ? <ProfileAvatar profile={profile} size={44} frame={c.id} /> : Icon && <span className="level-emblem cosmetic-emblem" data-tier={c.id === "tier" ? "tier" : c.id}><Icon size={18} aria-hidden /></span>}
           </span>
