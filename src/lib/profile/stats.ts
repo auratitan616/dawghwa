@@ -68,26 +68,4 @@ export function readingStats(progress: Iterable<ProgressRecord>, library: Iterab
   };
 }
 
-export interface Achievement {
-  id: string;
-  title: string;
-  detail: string;
-  earned: boolean;
-  /** Current value and goal, for a quiet progress hint on locked ones. */
-  value: number;
-  goal: number;
-}
-
-/** Optional, milestone-only achievements. No streaks, no daily targets, nothing that can be "lost". */
-export function achievements(s: ReadingStats, collections = 0): Achievement[] {
-  const a = (id: string, title: string, detail: string, value: number, goal: number): Achievement => ({ id, title, detail, value: Math.min(value, goal), goal, earned: value >= goal });
-  return [
-    a("first-chapter", "First page turned", "Finish your first chapter", s.chaptersRead, 1),
-    a("ten-chapters", "Hooked", "Finish 10 chapters", s.chaptersRead, 10),
-    a("hundred-chapters", "One more chapter", "Finish 100 chapters", s.chaptersRead, 100),
-    a("five-series", "Story hopper", "Start 5 different series", s.seriesStarted, 5),
-    a("first-complete", "The end", "Mark a series completed", s.completed, 1),
-    a("genres", "Wide reader", "Read or save series across 8 genres", s.genres.length, 8),
-    a("collection", "Curator", "Create a collection", collections, 1),
-  ];
-}
+// Achievements moved to src/lib/rewards/progression.ts (tiered sets derived from the event log).

@@ -32,6 +32,8 @@ export interface UserState {
   progress: Map<string, ProgressRecord>;
   hidden: Map<string, Hidden>;
   titles: Map<string, Title>;
+  /** The profile's append-only event log, oldest first. Rewards are derived from it. */
+  events: EventRecord[];
   /** Monotonic counter bumped on every signal (drives re-ranking). */
   signalVersion: number;
 }
@@ -44,6 +46,7 @@ let state: UserState = {
   progress: new Map(),
   hidden: new Map(),
   titles: new Map(),
+  events: [],
   signalVersion: 0,
 };
 const subs = new Set<() => void>();
@@ -109,11 +112,13 @@ async function activate(profile: ProfileRecord, profiles?: ProfileRecord[]) {
     d.getAllFromIndex("progress", "byProfile", profile.id),
     d.getAllFromIndex("hidden", "byProfile", profile.id),
   ]);
-  const eventKeys = await d.getAllKeysFromIndex("events", "byProfile", profile.id);
-  seq = eventKeys.reduce((m, k) => Math.max(m, k[1]), 0);
-  // titles the profile interacted with recently (explanations need their names)
-  const recent = (await d.getAllFromIndex("events", "byProfile", profile.id)).slice(-400).map((e) => e.titleKey);
-  const keys = [...new Set([...lib.map((r) => r.titleKey), ...prog.map((r) => r.titleKey), ...recent])];
+  const events = (await d.getAllFromIndex("events", "byProfile", profile.id)).sort((a, b) => a.seq - b.seq);
+  seq = events.reduce((m, e) => Math.max(m, e.seq), 0);
+  // titles the profile interacted with recently (explanations need their names),
+  // plus every series with a finished chapter (rewards need their genres)
+  const recent = events.slice(-400).map((e) => e.titleKey);
+  const finished = events.filter((e) => e.kind === "chapter_read" || e.kind === "title_finished").map((e) => e.titleKey);
+  const keys = [...new Set([...lib.map((r) => r.titleKey), ...prog.map((r) => r.titleKey), ...recent, ...finished])];
   const titles = await getCachedTitles(keys);
   await kvSet("activeProfile", profile.id);
   set({
@@ -124,6 +129,7 @@ async function activate(profile: ProfileRecord, profiles?: ProfileRecord[]) {
     progress: new Map(prog.map((r) => [r.titleKey, r])),
     hidden: new Map(hid.map((r) => [r.titleKey, r])),
     titles,
+    events,
     signalVersion: state.signalVersion + 1,
   });
 }
@@ -181,7 +187,7 @@ export async function signal(kind: SignalKind, t: Title | undefined, titleKey = 
   if (t) await rememberTitle(t);
   const e: EventRecord = { profileId: profile.id, seq: ++seq, kind, titleKey, at: Date.now(), ...extra };
   await (await db()).put("events", e);
-  set({ signalVersion: state.signalVersion + 1 });
+  set({ events: [...state.events, e], signalVersion: state.signalVersion + 1 });
   signalListeners.forEach((l) => l(e, t ?? state.titles.get(titleKey)));
 }
 
@@ -210,14 +216,15 @@ function baseRecord(key: string): LibraryRecord {
   return state.library.get(key) ?? { profileId: state.profile!.id, titleKey: key, favorite: false, collections: [], addedAt: now, updatedAt: now };
 }
 
-export async function setStatus(t: Title, status: LibraryStatus | undefined) {
+/** `context` "reader" marks a completion the reader earned by reading the final chapter. */
+export async function setStatus(t: Title, status: LibraryStatus | undefined, context?: string, value?: number) {
   if (!state.profile) return;
   const prev = state.library.get(t.key);
   const rec = { ...baseRecord(t.key), status, updatedAt: Date.now() };
   await rememberTitle(t);
   await putLibrary(rec, t.key);
   if (status && !prev?.status) await signal("library_add", t);
-  if (status === "completed" && prev?.status !== "completed") await signal("title_finished", t);
+  if (status === "completed" && prev?.status !== "completed") await signal("title_finished", t, t.key, context ? { context, value } : {});
   if (status === "dropped" && prev?.status !== "dropped") await signal("dropped", t);
 }
 
@@ -337,7 +344,7 @@ export async function saveProgress(u: ProgressUpdate): Promise<ProgressRecord | 
     await signal("chapter_read", u.title, u.title.key, { value: u.chapterNumber });
     const last = u.lastChapterNumber;
     const finishedTitle = last !== undefined && u.chapterNumber >= last && u.title.meta?.status === "completed";
-    if (finishedTitle && state.library.get(u.title.key)?.status !== "completed") await setStatus(u.title, "completed");
+    if (finishedTitle && state.library.get(u.title.key)?.status !== "completed") await setStatus(u.title, "completed", "reader", last);
     else if (!state.library.get(u.title.key)?.status) await setStatus(u.title, "reading");
   }
   return rec;

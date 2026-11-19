@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { achievements, readingStats } from "./stats";
+import { readingStats } from "./stats";
 import type { LibraryRecord, ProgressRecord } from "../store/db";
 import type { Title } from "../titles";
 
@@ -30,10 +30,5 @@ describe("readingStats", () => {
     expect(s.genres[0]).toEqual(["Action", 1]);
     expect(s.genres.map((g) => g[0]).sort()).toEqual(["Action", "Fantasy", "Romance"]);
   });
-  it("derives milestone achievements without streaks", () => {
-    const xs = achievements(s, 0);
-    expect(xs.find((x) => x.id === "first-chapter")!.earned).toBe(true);
-    expect(xs.find((x) => x.id === "ten-chapters")).toMatchObject({ earned: false, value: 3, goal: 10 });
-    expect(xs.some((x) => /streak/i.test(x.title + x.detail))).toBe(false);
-  });
+
 });
