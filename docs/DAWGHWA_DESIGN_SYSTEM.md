@@ -54,6 +54,9 @@ The blueprint (WEBTOON-style screens, see `docs/DAWGHWA_AUDIT.md`) sets the stru
 | Reward card (`celebrate()`, haptics, optional mascot) | `src/components/Celebrate.tsx` (`.reward-*`) | n/a (gamification layer) |
 | Progress ring | `src/components/ProgressRing.tsx` (`.ring*`) | n/a |
 | Badge medallion (locked, tiers I-III, progress ring) | `src/components/Badge.tsx` (`.badge*`) | n/a |
+| Quest card / list / Home strip | `src/components/Quests.tsx` (`.quest*`) | n/a |
+| Avatar with cosmetic frame | `src/components/ProfileAvatar.tsx` (`.pavatar*`) | n/a |
+| Segmented control | `src/components/Segmented.tsx` (`.segmented`) | n/a |
 | Achievements page | `src/routes/Achievements.tsx` (`.ach-*`, `.badge-grid`) | n/a |
 
 ## Layout breakpoints

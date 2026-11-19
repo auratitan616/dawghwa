@@ -57,7 +57,7 @@ export async function importProfile(json: string): Promise<ProfileRecord> {
   }
   if (!isExport(data)) throw new Error("That file isn't a Dawghwa profile export.");
   const base = newProfile(data.profile.name || "Imported", getUser().profiles.length);
-  const profile: ProfileRecord = { ...base, name: `${data.profile.name || "Imported"}`.slice(0, 40), color: data.profile.color || base.color, onboarded: true, prefs: { ...base.prefs, ...data.profile.prefs } };
+  const profile: ProfileRecord = { ...base, name: `${data.profile.name || "Imported"}`.slice(0, 40), color: data.profile.color || base.color, onboarded: true, prefs: { ...base.prefs, ...data.profile.prefs }, cosmetics: data.profile.cosmetics, rhythm: data.profile.rhythm };
   const pid = profile.id;
   const d = await db();
   const tx = d.transaction(["profiles", "library", "progress", "hidden", "events"], "readwrite");

@@ -40,6 +40,9 @@ test("no shell top bar; Discover is reached from Search", async ({ page }) => {
 
 test("Rewards toggle hides achievements and gives the nav slot back to Discover", async ({ page, isMobile }) => {
   await skipOnboarding(page);
+  await expect(page.getByRole("heading", { name: "This week's quests" })).toBeVisible();
+  await page.goto("/achievements");
+  await expect(page.locator(".quest")).toHaveCount(3);
   await page.goto("/profile");
   const toggle = page.getByRole("checkbox", { name: /Show rewards/ });
   await expect(toggle).toBeChecked();
@@ -47,6 +50,8 @@ test("Rewards toggle hides achievements and gives the nav slot back to Discover"
   const nav = page.locator(isMobile ? "nav.bottomnav" : ".sidebar nav");
   await expect(nav.getByRole("link", { name: "Achievements" })).toHaveCount(0);
   await expect(nav.getByRole("link", { name: "Discover" })).toBeVisible();
+  await page.goto("/");
+  await expect(page.getByRole("heading", { name: "This week's quests" })).toHaveCount(0);
   await page.goto("/achievements");
   await expect(page.getByRole("button", { name: "Turn rewards on" })).toBeVisible();
 });

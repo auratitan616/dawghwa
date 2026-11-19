@@ -2,6 +2,8 @@ import { useMemo, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Award, Download, Plus, RotateCcw, Trash2, Upload } from "lucide-react";
 import { Avatar } from "@/components/Avatar";
+import { ProfileAvatar } from "@/components/ProfileAvatar";
+import { Segmented } from "@/components/Segmented";
 import { Kicker } from "@/components/Editorial";
 import { MascotSays } from "@/components/Mascot";
 import { ProfileSkeleton } from "@/components/States";
@@ -21,18 +23,6 @@ import { evidence } from "@/lib/intel/learner";
 import { featureLabel } from "@/lib/intel/features";
 import { titlePath } from "@/lib/titles";
 import { isNative, platformName } from "@/lib/platform";
-
-function Segmented<T extends string>({ label, value, options, onChange }: { label: string; value: T; options: [T, string][]; onChange: (v: T) => void }) {
-  return (
-    <div className="segmented" role="radiogroup" aria-label={label}>
-      {options.map(([v, l]) => (
-        <button key={v} role="radio" aria-checked={value === v} onClick={() => onChange(v)}>
-          {l}
-        </button>
-      ))}
-    </div>
-  );
-}
 
 function TasteDna() {
   const s = useIntel();
@@ -159,7 +149,7 @@ export default function Profile() {
   return (
     <div className="page page-narrow profile-page">
       <header className="profile-hero">
-        <Avatar name={profile.name} color={profile.color} size={72} />
+        <ProfileAvatar profile={profile} size={80} />
         <div style={{ minWidth: 0 }}>
           <Kicker>Your reading universe</Kicker>
           <h1>{profile.name}</h1>

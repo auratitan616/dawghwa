@@ -25,8 +25,6 @@ export interface Settings {
    * quests, badges, progress rings and reward beats. Nothing is deleted; it is all derived.
    */
   rewards: boolean;
-  /** Opt-in weekly reading rhythm (days per week). 0 = off. Never a streak, never resets. */
-  rhythm: number;
   /** Blur covers of titles marked suggestive or adult until the reader opts in. */
   matureCovers: "blur" | "show";
 }
@@ -42,7 +40,6 @@ export const DEFAULT_SETTINGS: Settings = {
   pageGap: false,
   tapZones: true,
   rewards: true,
-  rhythm: 0,
   matureCovers: "blur",
 };
 
