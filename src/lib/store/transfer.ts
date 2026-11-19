@@ -2,6 +2,7 @@ import { cacheTitles, db, getCachedTitles, type CommentRecord, type EventRecord,
 import { getUser, newProfile, switchProfile } from "./user";
 import type { Title } from "../titles";
 import { MAX_COMMENT } from "../comments";
+import { questSeedOf } from "../rewards/quests";
 
 /**
  * Profile export / import as a portable JSON document. This is also the
@@ -42,7 +43,9 @@ export async function exportProfile(profileId = getUser().profile?.id): Promise<
     const { cachedAt: _c, ...rest } = t as Title & { cachedAt?: number };
     return rest;
   });
-  const { id: _id, ...p } = profile;
+  const { id: _id, ...rest } = profile;
+  // carry the (derived, not the raw id) quest seed so the imported profile keeps the same weekly quests
+  const p = { ...rest, questSeed: questSeedOf(profile) };
   return { format: "dawghwa-profile", version: 2, exportedAt: new Date().toISOString(), profile: p, library: strip(library), progress: strip(progress), hidden: strip(hidden), events: strip(events), comments: strip(comments), titles };
 }
 
@@ -61,7 +64,7 @@ export async function importProfile(json: string): Promise<ProfileRecord> {
   }
   if (!isExport(data)) throw new Error("That file isn't a Dawghwa profile export.");
   const base = newProfile(data.profile.name || "Imported", getUser().profiles.length);
-  const profile: ProfileRecord = { ...base, name: `${data.profile.name || "Imported"}`.slice(0, 40), color: data.profile.color || base.color, onboarded: true, prefs: { ...base.prefs, ...data.profile.prefs }, cosmetics: data.profile.cosmetics, rhythm: data.profile.rhythm };
+  const profile: ProfileRecord = { ...base, name: `${data.profile.name || "Imported"}`.slice(0, 40), color: data.profile.color || base.color, onboarded: true, prefs: { ...base.prefs, ...data.profile.prefs }, cosmetics: data.profile.cosmetics, rhythm: data.profile.rhythm, questSeed: data.profile.questSeed };
   const pid = profile.id;
   const d = await db();
   const tx = d.transaction(["profiles", "library", "progress", "hidden", "events", "comments"], "readwrite");

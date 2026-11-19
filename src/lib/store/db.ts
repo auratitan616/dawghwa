@@ -27,6 +27,8 @@ export interface ProfileRecord {
   cosmetics?: { frame?: string; emblem?: string };
   /** Opt-in weekly reading rhythm, in days per week. 0 or missing = off. */
   rhythm?: number;
+  /** Seed for weekly quests. Kept on export/import so an imported profile gets the same quests (defaults to the profile id). */
+  questSeed?: string;
 }
 
 export interface LibraryRecord {
@@ -44,7 +46,12 @@ export interface LibraryRecord {
 export interface ProgressRecord {
   profileId: string;
   titleKey: string;
+  /** Canonical chapter key (unified lists) or a provider chapter id (older records / single-source titles). */
   chapterId: string;
+  /** The provider version being read (`<sourceId>:<providerChapterId>`), so resume reopens the same source. */
+  variantId?: string;
+  sourceId?: string;
+  language?: string | null;
   chapterNumber: number;
   chapterTitle?: string;
   /** Page index within the chapter (0-based) and page count. */

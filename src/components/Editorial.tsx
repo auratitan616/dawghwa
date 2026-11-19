@@ -12,13 +12,22 @@ export function chNum(n: number | undefined): string {
   return `${(i ?? "0").padStart(3, "0")}${d ? `.${d}` : ""}`;
 }
 
+/** chNum for an exact number string: keeps "1.10" instead of float-formatting it. */
+export function chNumText(s: string): string {
+  const [i, d] = s.split(".");
+  return `${(i ?? "0").padStart(3, "0")}${d ? `.${d}` : ""}`;
+}
+
 /** Condensed chapter label, e.g. <ChapterNo n={42} /> renders "CH 042". */
-export function ChapterNo({ n, prefix = "Ch", className = "" }: { n?: number; prefix?: string; className?: string }) {
-  if (n === undefined) return null;
+export function ChapterNo({ n, label, prefix = "Ch", className = "" }: { n?: number; label?: string; prefix?: string; className?: string }) {
+  if (n === undefined && !label) return null;
+  // exact number strings ("1.10") are shown as-is; kind badges ("Pro", "SP") replace the prefix
+  const numeric = label === undefined || /^\d+(?:\.\d+)?$/.test(label);
+  const text = label === undefined ? chNum(n) : numeric ? chNumText(label) : label;
   return (
-    <span className={`ch-no ${className}`} aria-label={`Chapter ${n}`}>
-      <small aria-hidden="true">{prefix}</small>
-      <span aria-hidden="true">{chNum(n)}</span>
+    <span className={`ch-no ${className}`} aria-label={numeric ? `Chapter ${label ?? n}` : label}>
+      {numeric && <small aria-hidden="true">{prefix}</small>}
+      <span aria-hidden="true">{text}</span>
     </span>
   );
 }

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
-import { ArrowLeft, Check, ChevronLeft, ChevronRight, ExternalLink, ListOrdered, MessageCircle, RotateCw, Settings2 } from "lucide-react";
+import { ArrowLeft, Bookmark as BookmarkIcon, BookmarkCheck, Check, ChevronLeft, ChevronRight, ListOrdered, Maximize2, MessageCircle, Minimize2, RotateCw, Settings2, X } from "lucide-react";
 import { Mascot } from "@/components/Mascot";
 import { ChapterNo } from "@/components/Editorial";
 import { Sheet } from "@/components/Layer";
@@ -17,7 +17,10 @@ import { isMature, readerPath, titlePath } from "@/lib/titles";
 import { threads, useChapterComments } from "@/lib/comments";
 import type { Moment } from "@/lib/rewards/runtime";
 import { useHead } from "@/lib/seo";
-import type { Chapter, ChapterPage } from "@/lib/api/types";
+import type { Chapter, ChapterPage, ChapterVariant } from "@/lib/api/types";
+import { api } from "@/lib/api/endpoints";
+import { chapterAliases, chapterBadge, chapterLabel, editionLabel, fallbackPlan, findChapter, isChapterRead, languageLabel, mapPosition, pickVariant, variantIdOf } from "@/lib/chapters";
+import { isBookmarked, removeBookmark, toggleBookmark, useBookmarks } from "@/lib/store/bookmarks";
 
 /**
  * Scroll-only reader (D8). The top bar is always on screen (D9) and carries the
@@ -88,22 +91,48 @@ export default function Reader() {
   const title = t.data;
   const chapters = useChapters(title);
   const prog = useUser((s) => (title ? s.progress.get(title.key) : undefined));
-  const src = sources.data?.find((s) => s.id === source);
-  const readable = sources.data ? Boolean(src?.capabilities.chapterPages) : true;
-  const pagesQ = usePages(source, chapterId, settings.dataSaver, readable);
+  const [pageRefreshKey, setPageRefreshKey] = useState(0);
+
+  // ------------------------------------------------------------ chapter + version
+  const all = useMemo(() => chapters.data?.chapters ?? [], [chapters.data]);
+  const found = findChapter(all, chapterId);
+  const chapter: Chapter | undefined = found?.chapter;
+  // Prev/next stay in the current chapter's translation language: never switch language silently.
+  const list = useMemo(() => (chapter ? all.filter((c) => (c.language ?? "und") === (chapter.language ?? "und")) : all), [all, chapter]);
+  const idx = chapter ? list.indexOf(chapter) : -1;
+  const sameChapter = (cid: string | undefined) => Boolean(cid && chapter && chapterAliases(chapter).includes(cid));
+  const [failed, setFailed] = useState<Set<string>>(() => new Set());
+  const [notice, setNotice] = useState<{ kind: "fallback" | "approx" | "manual"; text: string } | null>(null);
+  const [needsChoice, setNeedsChoice] = useState<{ failed: ChapterVariant; options: ChapterVariant[] } | null>(null);
+  // a pending position to carry over when the version changes (fallback or manual switch)
+  const [carry, setCarry] = useState<{ page: number; count: number; variantId: string } | null>(null);
+  const preferredSource = params.get("s");
+  const preferredVariant = params.get("v");
+  const selectedVariant = pickVariant(chapter, {
+    variantId: preferredVariant,
+    sourceId: preferredSource,
+    previous: prog && sameChapter(prog.chapterId) && prog.sourceId ? { sourceId: prog.sourceId } : null,
+    failed,
+  });
+  const activeVariantId = selectedVariant ? variantIdOf(selectedVariant) : "";
+  const activeSource = selectedVariant?.sourceId ?? preferredSource ?? source;
+  const activeChapterId = selectedVariant?.providerChapterId ?? chapterId;
+  const chapterKey = chapter?.id ?? chapterId;
+  const src = sources.data?.find((s) => s.id === activeSource);
+  // unified rows always carry variants; a legacy single-source list falls back to the source capability
+  const readable = selectedVariant ? true : sources.data ? Boolean(sources.data.find((s) => s.id === source)?.capabilities.chapterPages) : true;
+  const pagesQ = usePages(activeSource, activeChapterId, settings.dataSaver, readable && (Boolean(selectedVariant) || chapters.isSuccess || chapters.isError), selectedVariant?.url, pageRefreshKey);
   const pages = useMemo(() => pagesQ.data?.pages ?? [], [pagesQ.data]);
   const count = pages.length;
-
-  const list = useMemo(() => chapters.data?.chapters ?? [], [chapters.data]);
-  const idx = list.findIndex((c) => c.id === chapterId);
-  const chapter: Chapter | undefined = list[idx];
   const prev = idx > 0 ? list[idx - 1] : undefined;
   const next = idx >= 0 ? list[idx + 1] : undefined;
 
   // a synchronous position mirror covers reloads that land before the IndexedDB write commits
-  const mirror = chapterId ? readPos(chapterId) : undefined;
-  const fresh = mirror && (prog?.chapterId !== chapterId || mirror.t > (prog?.updatedAt ?? 0)) ? mirror : undefined;
-  const startPage = Number(params.get("p") ?? (fresh ? fresh.page : prog?.chapterId === chapterId ? prog.page : 0)) || 0;
+  const mirror = chapterKey ? readPos(chapterKey) : undefined;
+  const fresh = mirror && (!sameChapter(prog?.chapterId) || mirror.t > (prog?.updatedAt ?? 0)) ? mirror : undefined;
+  const paramPage = Number(params.get("p") ?? (fresh ? fresh.page : sameChapter(prog?.chapterId) ? prog!.page : 0)) || 0;
+  const carried = carry && carry.variantId === activeVariantId && count ? mapPosition(carry.page, carry.count, count) : undefined;
+  const startPage = carried ? carried.page : paramPage;
   const [page, setPage] = useState(startPage);
   const [panel, setPanel] = useState(false);
   const [chList, setChList] = useState(false);
@@ -125,24 +154,61 @@ export default function Reader() {
   const [beat, setBeat] = useState<Moment | null>(null);
   const scroller = useRef<HTMLDivElement>(null);
   const restored = useRef(false);
-  const target = useMemo(() => (title && chapterId ? { title, chapterId, chapterNumber: chapter?.number } : undefined), [title, chapterId, chapter?.number]);
-  const { items: comments } = useChapterComments(chapterId);
+  const pageRefreshAt = useRef(0);
+  // comments belong to the canonical chapter, so every version of it shares them
+  const target = useMemo(() => (title && chapterKey ? { title, chapterId: chapterKey, chapterNumber: chapter?.number } : undefined), [title, chapterKey, chapter?.number]);
+  const { items: comments } = useChapterComments(chapterKey);
 
   useHead({
-    title: title ? `${title.title}${chapter ? ` · Chapter ${chapter.number}` : ""}` : "Reader",
+    title: title ? `${title.title}${chapter ? ` · ${chapterLabel(chapter)}` : ""}` : "Reader",
     noindex: true,
   });
 
-  // reset per chapter
+  // Older links and history use provider chapter ids; move them to the canonical chapter key
+  // and pin the version they referred to (same source, same upload).
+  useEffect(() => {
+    if (!title || !found?.legacy) return;
+    const v = found.chapter.variants?.find((x) => x.providerChapterId === chapterId || x.variantId === chapterId);
+    const p = params.get("p");
+    nav(readerPath(title, found.chapter.id, p ? Number(p) : undefined, v?.sourceId ?? preferredSource ?? undefined, v ? variantIdOf(v) : undefined), { replace: true });
+  }, [found, title, chapterId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // reset per chapter and per version
   useEffect(() => {
     setPage(startPage);
     setCountdown(null);
     setReachedEnd(false);
     setFailures(0);
+    setPageRefreshKey(0);
     setRatios({});
-    setBeat(null);
     restored.current = false;
-  }, [chapterId]); // eslint-disable-line react-hooks/exhaustive-deps
+    pageRefreshAt.current = 0;
+  }, [chapterKey, activeVariantId]); // eslint-disable-line react-hooks/exhaustive-deps
+  // a new chapter starts with no reward beat, a clean failure list and no stale notices
+  useEffect(() => {
+    setBeat(null);
+    setFailed(new Set());
+    setNeedsChoice(null);
+    setNotice((n) => (n?.kind === "fallback" || n?.kind === "approx" ? n : null));
+  }, [chapterKey]);
+
+  // carried position: once the new version's pages are known, map the page and explain approximations
+  useEffect(() => {
+    if (!carry || carry.variantId !== activeVariantId || !count) return;
+    const m = mapPosition(carry.page, carry.count, count);
+    setPage(m.page);
+    if (!m.exact)
+      setNotice((n) => ({
+        kind: n?.kind === "fallback" ? "fallback" : "approx",
+        text: `${n?.kind === "fallback" ? n.text + " " : ""}This version splits pages differently (${count} pages instead of ${carry.count}), so you're at the closest point: page ${m.page + 1}.`,
+      }));
+    setCarry(null);
+    setParams((cur) => {
+      const np = new URLSearchParams(cur);
+      np.set("p", String(m.page));
+      return np;
+    }, { replace: true });
+  }, [carry, activeVariantId, count]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Android: the status bar hides while reading; the reader's own top bar stays (D9).
   useEffect(() => {
@@ -189,8 +255,11 @@ export default function Reader() {
       void saveProgress({
         title,
         chapterId: chapter.id,
+        variantId: selectedVariant ? variantIdOf(selectedVariant) : undefined,
+        sourceId: selectedVariant?.sourceId,
+        language: chapter.language,
         chapterNumber: chapter.number,
-        chapterTitle: chapter.title,
+        chapterTitle: chapter.kind && chapter.kind !== "regular" ? chapterLabel(chapter) : chapter.title,
         page: p,
         offset: a?.offset,
         pageCount: count,
@@ -199,7 +268,7 @@ export default function Reader() {
         lastChapterNumber: list.at(-1)?.number,
       });
     },
-    [title, chapter, count, list],
+    [title, chapter, count, list, selectedVariant],
   );
   const saveRef = useRef(save);
   saveRef.current = save;
@@ -252,7 +321,7 @@ export default function Reader() {
       io.disconnect();
       endIo.disconnect();
     };
-  }, [count, chapterId]);
+  }, [count, chapterKey, activeVariantId]);
 
   // live reading fraction for the top bar line (scroll position through the pages)
   const [fraction, setFraction] = useState(0);
@@ -290,7 +359,7 @@ export default function Reader() {
       clearTimeout(trailing);
       window.removeEventListener("scroll", on);
     };
-  }, [count, chapterId]);
+  }, [count, chapterKey, activeVariantId]);
 
   // restore the saved position once pages exist; keep it pinned while images above it load
   // and change height, until the reader scrolls or touches the page themselves
@@ -298,7 +367,7 @@ export default function Reader() {
     if (!count || !title || restored.current) return;
     restored.current = true;
     anchor.current = null;
-    const offset = fresh && fresh.page === startPage ? (fresh.offset ?? 0) : prog?.chapterId === chapterId && prog.page === startPage ? (prog.offset ?? 0) : 0;
+    const offset = carried ? 0 : fresh && fresh.page === startPage ? (fresh.offset ?? 0) : sameChapter(prog?.chapterId) && prog!.page === startPage ? (prog!.offset ?? 0) : 0;
     if (startPage <= 0 && offset <= 0) return void window.scrollTo(0, 0);
     const root = scroller.current;
     if (!root) return;
@@ -321,16 +390,110 @@ export default function Reader() {
     const tm = setTimeout(stop, 8000);
     for (const e of ["wheel", "touchstart", "keydown", "pointerdown"]) window.addEventListener(e, stop, { passive: true, once: true });
     return stop;
-  }, [count, startPage, title]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [count, startPage, title, activeVariantId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const goChapter = useCallback(
     (c?: Chapter) => {
       if (!c || !title) return;
       save();
-      nav(readerPath(title, c.id), { replace: true });
+      // keep the same provider and translation group when the next chapter has it
+      const v = pickVariant(c, { previous: selectedVariant ?? null });
+      setNotice(null);
+      nav(readerPath(title, c.id, undefined, v?.sourceId ?? activeSource, v ? variantIdOf(v) : undefined), { replace: true });
     },
-    [nav, title, save],
+    [nav, title, save, activeSource, selectedVariant],
   );
+
+  /** Switch to another version of the same chapter, carrying the reading position. */
+  const switchVariant = useCallback(
+    (v: ChapterVariant, why: "manual" | "fallback") => {
+      if (!chapter) return;
+      if (why === "manual") save();
+      const vid = variantIdOf(v);
+      const at = Math.min(anchor.current?.page ?? page, Math.max(0, count - 1));
+      setCarry({ page: at, count, variantId: vid });
+      setNeedsChoice(null);
+      setParams((cur) => {
+        const np = new URLSearchParams(cur);
+        np.set("s", v.sourceId);
+        np.set("v", vid);
+        np.set("p", String(at));
+        return np;
+      }, { replace: true });
+    },
+    [chapter, page, count, save, setParams],
+  );
+
+  /**
+   * The current version failed. Try another version of the *same* chapter in
+   * the *same* language and edition automatically; a different edition needs
+   * the reader's choice; nothing else is ever substituted.
+   */
+  const fallbackFrom = useCallback(
+    (kind: "pages" | "image" | "empty", errorCode?: string) => {
+      if (!chapter || !selectedVariant) return;
+      const failedId = variantIdOf(selectedVariant);
+      if (failed.has(failedId)) return;
+      const tried = new Set(failed).add(failedId);
+      setFailed(tried);
+      const plan = fallbackPlan(chapter, selectedVariant, tried);
+      const to = plan.automatic[0];
+      void api.report({ sourceId: selectedVariant.sourceId, kind, chapterKey: chapter.id, providerChapterId: selectedVariant.providerChapterId, errorCode, fallback: { attempted: Boolean(to), succeeded: false, toSourceId: to?.sourceId } });
+      if (to) {
+        const diffs = [to.sourceId !== selectedVariant.sourceId ? null : "another upload", (to.group?.id ?? "") !== (selectedVariant.group?.id ?? "") && to.group ? `translated by ${to.group.name}` : null].filter(Boolean);
+        setNotice({
+          kind: "fallback",
+          text: `${selectedVariant.source} couldn't load ${chapterLabel(chapter)}. Switched to the same chapter (${languageLabel(to.language ?? chapter.language)}) on ${to.source}${diffs.length ? `, ${diffs.join(", ")}` : ""}.`,
+        });
+        switchVariant(to, "fallback");
+      } else if (plan.manual.length) {
+        setNeedsChoice({ failed: selectedVariant, options: plan.manual });
+      }
+    },
+    [chapter, selectedVariant, failed, switchVariant],
+  );
+
+  // pages request failed or came back empty -> fallback
+  useEffect(() => {
+    if (!chapter || !selectedVariant || pagesQ.isFetching) return;
+    if (pagesQ.isError) fallbackFrom("pages", (pagesQ.error as { code?: string } | null)?.code);
+    else if (pagesQ.data && pagesQ.data.pages.length === 0) fallbackFrom("empty");
+  }, [pagesQ.isError, pagesQ.data, pagesQ.isFetching, chapter, selectedVariant]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // images keep failing after a fresh manifest -> fallback
+  useEffect(() => {
+    if (failures >= 3 && pageRefreshKey > 0 && !pagesQ.isFetching) fallbackFrom("image");
+  }, [failures, pageRefreshKey, pagesQ.isFetching]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // the fallback version loaded: tell the API the fallback worked
+  const reportedOk = useRef<string>("");
+  useEffect(() => {
+    if (!notice || notice.kind !== "fallback" || !count || !selectedVariant || reportedOk.current === activeVariantId) return;
+    reportedOk.current = activeVariantId;
+    const from = chapter?.variants?.find((v) => failed.has(variantIdOf(v)));
+    if (from) void api.report({ sourceId: from.sourceId, kind: "pages", chapterKey: chapter?.id, providerChapterId: from.providerChapterId, fallback: { attempted: true, succeeded: true, toSourceId: selectedVariant.sourceId } });
+  }, [count, activeVariantId, notice]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ------------------------------------------------------------ bookmarks & fullscreen
+  const bookmarks = useBookmarks(title?.key);
+  const curPage = Math.min(page, Math.max(0, count - 1));
+  const marked = Boolean(title && chapter && count && bookmarks.length && isBookmarked(title.key, chapter.id, curPage));
+  const onBookmark = () => {
+    if (!title || !chapter || !count) return;
+    const added = toggleBookmark({ titleKey: title.key, chapterId: chapter.id, chapterLabel: chapterLabel(chapter), page: curPage, pageCount: count, variantId: activeVariantId, sourceId: selectedVariant?.sourceId });
+    void haptic("light");
+    setNotice({ kind: "manual", text: added ? `Bookmarked page ${curPage + 1}.` : `Bookmark removed.` });
+  };
+  const [isFull, setIsFull] = useState(() => typeof document !== "undefined" && Boolean(document.fullscreenElement));
+  useEffect(() => {
+    const on = () => setIsFull(Boolean(document.fullscreenElement));
+    document.addEventListener("fullscreenchange", on);
+    return () => document.removeEventListener("fullscreenchange", on);
+  }, []);
+  const toggleFullscreen = () => {
+    if (document.fullscreenElement) void document.exitFullscreen?.();
+    else void document.documentElement.requestFullscreen?.().catch(() => setNotice({ kind: "manual", text: "Fullscreen isn't available here." }));
+  };
 
   // keyboard: the page scrolls natively; [ and ] change chapter, C opens comments
   useEffect(() => {
@@ -359,7 +522,15 @@ export default function Reader() {
   );
 
   const onLoad = useCallback((i: number, r: number) => setRatios((m) => (m[i] === r ? m : { ...m, [i]: r })), []);
-  const onFail = useCallback(() => setFailures((n) => n + 1), []);
+  const onFail = useCallback(() => {
+    setFailures((n) => n + 1);
+    // Provider page URLs can expire or point at unhealthy CDN nodes. Fetch a
+    // fresh manifest at most once per 15 seconds rather than retrying a dead URL.
+    if (Date.now() - pageRefreshAt.current > 15_000) {
+      pageRefreshAt.current = Date.now();
+      setPageRefreshKey((key) => key + 1);
+    }
+  }, []);
 
   // auto-advance: countdown on the end panel. Paused while comments are open.
   useEffect(() => {
@@ -375,23 +546,18 @@ export default function Reader() {
     goChapter(next);
   }, [countdown, goChapter, next]);
 
-  const sourceName = src?.name ?? title?.sourceName ?? source;
+  const sourceName = src?.name ?? selectedVariant?.source ?? title?.sourceName ?? activeSource;
   const backTo = title ? titlePath(title) : "/";
 
   // ------------------------------------------------------------ states
-  if (sources.data && !readable)
+  if ((chapters.isSuccess || sources.data) && !readable)
     return (
       <div className="reader reader-msg">
         <div className="state state-center">
-          <h1 style={{ fontSize: "var(--text-xl)" }}>Reading isn't available for {sourceName} in Dawghwa</h1>
-          <p>This source doesn't provide chapter pages through the Dawghwa API, so the chapter opens on the source's own site.</p>
+          <h1 style={{ fontSize: "var(--text-xl)" }}>This chapter isn't readable in Dawghwa yet</h1>
+          <p>No compatible source supplied in-app pages for this chapter. Pick another chapter or version from the title page.</p>
           <div className="cluster">
-            {chapter && (
-              <a className="btn btn-primary" href={chapter.url} target="_blank" rel="noopener noreferrer">
-                <ExternalLink size={16} /> Open on {sourceName}
-              </a>
-            )}
-            <Link className="btn" to={backTo}>
+            <Link className="btn btn-primary" to={backTo}>
               Back to title
             </Link>
           </div>
@@ -404,7 +570,7 @@ export default function Reader() {
     <section className="rd-end" aria-label="End of chapter">
       <div className="rd-end-head">
         <p className="rd-end-kicker">
-          End of <ChapterNo n={chapter?.number} />
+          End of <ChapterNo n={chapter?.number} label={chapter && chapter.numberText !== undefined ? chapterBadge(chapter) : undefined} />
         </p>
         {beat && settings.rewards ? <RewardBeat m={beat} /> : <Mascot variant="head" size={64} className="rd-end-mascot" />}
       </div>
@@ -415,10 +581,7 @@ export default function Reader() {
             {title && <Cover src={title.cover} title={title.title} sizes="64px" mature={isMature(title)} />}
             <span className="rd-next-body">
               <span className="rd-next-kicker">Next episode</span>
-              <span className="rd-next-title">
-                Chapter {next.number}
-                {next.title ? `: ${next.title}` : ""}
-              </span>
+              <span className="rd-next-title">{chapterLabel(next)}</span>
             </span>
             <ChevronRight size={20} aria-hidden="true" />
           </button>
@@ -455,11 +618,11 @@ export default function Reader() {
         </div>
       )}
 
-      <p className="rd-credits">Credits: {[chapter?.group?.name, `via ${prettySource(sourceName)}`].filter(Boolean).join(" · ")}</p>
+      <p className="rd-credits">Credits: {[selectedVariant?.group?.name ?? chapter?.group?.name, `via ${prettySource(sourceName)}`, chapter?.language ? languageLabel(selectedVariant?.language ?? chapter.language) : null].filter(Boolean).join(" · ")}</p>
       <div className="rd-end-links">
         {prev && (
           <button className="btn btn-ghost" onClick={() => goChapter(prev)}>
-            <ChevronLeft size={16} /> Chapter {prev.number}
+            <ChevronLeft size={16} /> {chapterLabel(prev)}
           </button>
         )}
         <Link className="btn btn-ghost" to={backTo}>
@@ -469,9 +632,28 @@ export default function Reader() {
     </section>
   );
 
-  const body = pagesQ.isError ? (
+  const body = needsChoice ? (
+    <div className="state state-center rd-choice" role="alert">
+      <h2>{needsChoice.failed.source} couldn't load this chapter</h2>
+      <p>
+        The same chapter is available in another edition. Editions can differ in translation and page layout, so Dawghwa
+        won't switch without asking.
+      </p>
+      <div className="stack">
+        {needsChoice.options.map((v) => (
+          <button key={variantIdOf(v)} className="btn" onClick={() => switchVariant(v, "manual")}>
+            Read on {v.source} · {editionLabel(v.edition)} · {languageLabel(v.language ?? chapter?.language)}
+          </button>
+        ))}
+        <button className="btn btn-ghost" onClick={() => (setNeedsChoice(null), setFailed(new Set()), void pagesQ.refetch())}>
+          <RotateCw size={15} /> Try {needsChoice.failed.source} again
+        </button>
+      </div>
+    </div>
+  ) : pagesQ.isError ? (
     <div className="state state-center">
-      <ErrorState error={pagesQ.error} retry={() => void pagesQ.refetch()} />
+      <ErrorState error={pagesQ.error} retry={() => (setFailed(new Set()), void pagesQ.refetch())} />
+      {chapter && (chapter.variants?.length ?? 0) <= 1 && <p className="muted">No other source has this chapter in the same language.</p>}
       {errorText(pagesQ.error).offline && <p className="muted">Chapter pages aren't stored offline. Reconnect to keep reading.</p>}
     </div>
   ) : !pagesQ.data ? (
@@ -480,13 +662,11 @@ export default function Reader() {
     </div>
   ) : !count ? (
     <div className="state state-center">
-      <h2>This chapter has no pages</h2>
-      <p>{sourceName} returned an empty chapter. It may be hosted externally.</p>
-      {chapter && (
-        <a className="btn" href={chapter.url} target="_blank" rel="noopener noreferrer">
-          <ExternalLink size={16} /> Open on {sourceName}
-        </a>
-      )}
+      <h2>This chapter has no readable pages</h2>
+      <p>{sourceName} did not return any pages{chapter && (chapter.variants?.length ?? 0) > 1 ? ", and no other version in the same language and edition could be used automatically. You can pick a version in the reader settings." : ", and no other source has this chapter in the same language."}</p>
+      <Link className="btn" to={backTo}>
+        Back to title
+      </Link>
     </div>
   ) : (
     <div className="rd-strip" ref={scroller}>
@@ -512,7 +692,7 @@ export default function Reader() {
         <div className="rd-titles">
           <span className="rd-series">{title?.title ?? (t.isError ? "Reader" : "Loading…")}</span>
           <span className="rd-chapter">
-            {[chapter ? `Chapter ${chapter.number}${chapter.title ? `: ${chapter.title}` : ""}` : "", count ? `${Math.min(page, count - 1) + 1} / ${count}` : ""].filter(Boolean).join(" · ")}
+            {[chapter ? chapterLabel(chapter) : "", `via ${prettySource(sourceName)}`, chapter?.language ? languageLabel(selectedVariant?.language ?? chapter.language) : null, count ? `${Math.min(page, count - 1) + 1} / ${count}` : ""].filter(Boolean).join(" · ")}
           </span>
         </div>
         {target && (
@@ -530,6 +710,11 @@ export default function Reader() {
             <ListOrdered size={20} />
           </button>
         )}
+        {count > 0 && (
+          <button className="icon-btn" aria-label={marked ? "Remove bookmark" : "Bookmark this page"} aria-pressed={marked} onClick={onBookmark}>
+            {marked ? <BookmarkCheck size={20} /> : <BookmarkIcon size={20} />}
+          </button>
+        )}
         <button className="icon-btn" aria-label="Reader settings" aria-haspopup="dialog" onClick={() => setPanel(true)}>
           <Settings2 size={20} />
         </button>
@@ -539,7 +724,15 @@ export default function Reader() {
       </header>
 
       <main className="rd-body">
-        {failures >= 3 && (
+        {notice && (
+          <div className={`banner rd-banner rd-notice ${notice.kind === "manual" ? "" : "banner-warn"}`} role="status" aria-live="polite" data-testid="reader-notice">
+            <span>{notice.text}</span>
+            <button className="icon-btn" aria-label="Dismiss" onClick={() => setNotice(null)}>
+              <X size={16} />
+            </button>
+          </div>
+        )}
+        {failures >= 3 && !notice && (
           <div className="banner banner-warn rd-banner" role="status">
             Several pages failed. Image links from {sourceName} can expire.
             <button className="btn btn-sm" onClick={() => (setFailures(0), void pagesQ.refetch())}>
@@ -554,13 +747,41 @@ export default function Reader() {
 
       <Sheet open={chList} onClose={() => setChList(false)} title="Chapters">
         <ol className="rd-chlist">
+          {bookmarks.length > 0 && (
+            <li className="rd-bookmarks">
+              <p className="rd-bm-head">Bookmarks</p>
+              {bookmarks.slice(0, 20).map((b) => (
+                <span key={`${b.chapterId}|${b.page}`} className="rd-bm">
+                  <button
+                    className="rd-ch"
+                    onClick={() => {
+                      setChList(false);
+                      if (!title) return;
+                      const c = findChapter(all, b.chapterId)?.chapter;
+                      const v = c ? pickVariant(c, { variantId: b.variantId, sourceId: b.sourceId }) : undefined;
+                      if (c && v && variantIdOf(v) !== b.variantId && b.pageCount) setCarry({ page: b.page, count: b.pageCount, variantId: variantIdOf(v) });
+                      nav(readerPath(title, b.chapterId, b.page, v?.sourceId ?? b.sourceId, v ? variantIdOf(v) : b.variantId), { replace: true });
+                    }}
+                  >
+                    <BookmarkCheck size={16} aria-hidden="true" />
+                    <span className="rd-ch-title">
+                      {b.chapterLabel} · page {b.page + 1}
+                    </span>
+                  </button>
+                  <button className="icon-btn" aria-label={`Remove bookmark ${b.chapterLabel} page ${b.page + 1}`} onClick={() => title && removeBookmark(title.key, b.chapterId, b.page)}>
+                    <X size={15} />
+                  </button>
+                </span>
+              ))}
+            </li>
+          )}
           {[...list].reverse().map((c) => {
-            const read = Boolean(prog?.read[c.id]);
+            const read = isChapterRead(prog?.read, c);
             return (
               <li key={c.id}>
-                <button className="rd-ch" aria-current={c.id === chapterId ? "true" : undefined} data-read={read || undefined} onClick={() => (setChList(false), goChapter(c))}>
-                  <ChapterNo n={c.number} />
-                  <span className="rd-ch-title">{c.title || `Chapter ${c.number}`}</span>
+                <button className="rd-ch" aria-current={c.id === chapterKey ? "true" : undefined} data-read={read || undefined} onClick={() => (setChList(false), goChapter(c))}>
+                  <ChapterNo n={c.number} label={c.numberText !== undefined ? chapterBadge(c) : undefined} />
+                  <span className="rd-ch-title">{chapterLabel(c)}</span>
                   {read && <Check size={16} aria-label="Read" />}
                 </button>
               </li>
@@ -583,6 +804,41 @@ export default function Reader() {
             </span>
             <input type="checkbox" checked={settings.dataSaver} onChange={(e) => (updateSettings({ dataSaver: e.target.checked }), void haptic("light"))} />
           </label>
+          {typeof document !== "undefined" && document.fullscreenEnabled && (
+            <div className="settings-row">
+              <span>Fullscreen</span>
+              <button className="btn btn-sm" onClick={toggleFullscreen} aria-pressed={isFull}>
+                {isFull ? <Minimize2 size={15} /> : <Maximize2 size={15} />} {isFull ? "Exit" : "Enter"}
+              </button>
+            </div>
+          )}
+          {chapter?.variants && chapter.variants.length > 1 && (
+            <label className="settings-row">
+              <span>
+                Chapter version
+                <small className="muted" style={{ display: "block" }}>
+                  Same chapter from another source or translation group. Wording and page splits can differ.
+                </small>
+              </span>
+              <select
+                className="input"
+                aria-label="Chapter version"
+                value={activeVariantId}
+                onChange={(e) => {
+                  const v = chapter.variants?.find((x) => variantIdOf(x) === e.target.value);
+                  if (!v || variantIdOf(v) === activeVariantId) return;
+                  setNotice(null);
+                  switchVariant(v, "manual");
+                }}
+              >
+                {chapter.variants.map((v) => (
+                  <option key={variantIdOf(v)} value={variantIdOf(v)}>
+                    {[v.source, v.group?.name, languageLabel(v.language ?? chapter.language), v.edition === "official" ? "Official" : null, failed.has(variantIdOf(v)) ? "failed" : null].filter(Boolean).join(" · ")}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
           <p className="muted" style={{ fontSize: "var(--text-xs)" }}>
             Pages scroll top to bottom. Keys: [ and ] change chapter, C opens comments.
           </p>
