@@ -18,7 +18,7 @@ import { titlePath, type Title, isMature } from "@/lib/titles";
  * browse pool filtered locally; a tile with no matching covers stays typographic.
  */
 
-const GENRES = ["Action", "Fantasy", "Romance", "Comedy", "Drama", "Isekai", "Martial Arts", "Psychological", "Horror", "Sci-Fi", "Slice of Life", "Mystery", "Sports", "Thriller"];
+import { GENRES } from "@/lib/genres";
 
 const FORMATS = [
   { kind: "manhwa", label: "Manhwa", note: "Korean. Mostly full-colour vertical webtoons." },

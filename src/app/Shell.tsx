@@ -60,6 +60,11 @@ export function Shell() {
   const profile = useUser((s) => s.profile);
   const { rewards } = useSettings();
   const NAV = navItems(rewards);
+  const ready = useUser((s) => s.ready);
+  useEffect(() => {
+    // Reward moments are optional and lazy: the engine stays out of the initial bundle.
+    if (ready) void import("@/lib/rewards/runtime").then((m) => m.startRewards());
+  }, [ready]);
   useEffect(() => {
     const key = (e: KeyboardEvent) => {
       const t = e.target as HTMLElement;

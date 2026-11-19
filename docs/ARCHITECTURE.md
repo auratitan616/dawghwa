@@ -20,6 +20,16 @@ The app never talks to content providers for data. Provider logic, normalisation
 | Platform | `src/lib/platform/` | Single abstraction over web and Capacitor (back button, status bar, immersive, haptics, share, network, lifecycle, deep links). Native plugins are lazy imported only on native |
 | UI | `src/components/`, `src/routes/`, `src/styles/` | Lazy routes, design tokens, dark and light themes, reduced motion |
 
+## Rewards (gamification)
+
+Everything is derived; nothing about XP, levels or badges is stored.
+
+- `src/lib/rewards/progression.ts`: pure functions. `ledger(events, titles)` turns the profile's append-only event log into XP entries with the farm-proofing rules (one award per series and chapter number, only `chapter_read` events, which the reader emits only when the last page is reached; completions only with context `"reader"` and at least half the chapters read). `levelFor`, `TIERS`, `achievementSets`, `passport` and `gains` (what changed between two snapshots).
+- `src/lib/rewards/index.ts`: `progressionFor(state)` and `useProgression()`. Later features (quests, comments) add inputs with `registerProgressionInput` rather than new stores.
+- `src/lib/rewards/runtime.ts`: lazy-loaded after the store is ready. Listens to signals, computes before and after, and calls `celebrate()`, unless a screen registered a sink with `setRewardSink` (the Reader's chapter-end panel).
+- `UserState.events` holds the event log in memory, so progression is synchronous. Export includes the titles of every finished series, so genre stamps survive a round trip.
+- `settings.rewards` (Profile > Rewards) hides every surface. Turning it off deletes nothing.
+
 ## Routing
 
 `/`, `/discover`, `/search`, `/title/:source/:id/:slug?`, `/library`, `/history`, `/profile`, `/about` inside the shell; `/read/:source/:id/:chapterId` and `/welcome` are full screen. Private routes are disallowed in `robots.txt` and marked `noindex`.

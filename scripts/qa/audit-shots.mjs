@@ -17,7 +17,7 @@ for (const theme of THEMES) for (const vp of VPS) {
   const errs = [];
   page.on("pageerror", (e) => errs.push(e.message));
   const shot = async (name, full = false) => { await page.screenshot({ path: `${out}/${theme}-${vp.name}-${name}.png`, fullPage: full }); };
-  await page.addInitScript((t) => { try { const s = JSON.parse(localStorage.getItem("dawghwa:settings") || "{}"); s.theme = t; localStorage.setItem("dawghwa:settings", JSON.stringify(s)); } catch {} }, theme);
+  await page.addInitScript((t) => { try { const s = JSON.parse(localStorage.getItem("dawghwa:settings") || "{}"); s.theme = t; s.readerMode = "vertical"; localStorage.setItem("dawghwa:settings", JSON.stringify(s)); } catch {} }, theme);
   await page.goto(base + "/welcome");
   await page.waitForTimeout(1500);
   await shot("welcome");
@@ -40,9 +40,21 @@ for (const theme of THEMES) for (const vp of VPS) {
     await page.goto(base + readUrl);
     await page.waitForTimeout(6000);
     await shot("reader");
+    // Step down like a reader would, so lazy pages load and the end marker is reached.
+    for (let i = 0; i < 80; i++) {
+      await page.evaluate(() => window.scrollBy(0, window.innerHeight * 2));
+      await page.waitForTimeout(120);
+      if (await page.evaluate(() => window.innerHeight + window.scrollY >= document.body.scrollHeight - 4)) break;
+    }
     await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
     await page.waitForTimeout(2500);
     await shot("reader-end");
+    // After one finished chapter: the derived reward surfaces have something to show.
+    for (const [name, path] of (process.env.AFTER || "").split(",").filter(Boolean).map((r) => [`${r.replace(/\W/g, "") || "home"}-after`, r])) {
+      await page.goto(base + path);
+      await page.waitForTimeout(2500);
+      await shot(name, process.env.FULL === "1");
+    }
   }
   console.log(theme, vp.name, "errors:", errs.slice(0, 3).join(" | ") || "none");
   await ctx.close();
