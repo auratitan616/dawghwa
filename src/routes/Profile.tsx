@@ -1,6 +1,6 @@
 import { useMemo, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { Award, Download, Plus, RotateCcw, Trash2, Upload } from "lucide-react";
+import { Award, Download, Lock, LogOut, Plus, RotateCcw, Share2, Trash2, Upload } from "lucide-react";
 import { Avatar } from "@/components/Avatar";
 import { ProfileAvatar } from "@/components/ProfileAvatar";
 import { Segmented } from "@/components/Segmented";
@@ -23,6 +23,9 @@ import { evidence } from "@/lib/intel/learner";
 import { featureLabel } from "@/lib/intel/features";
 import { titlePath } from "@/lib/titles";
 import { isNative, platformName } from "@/lib/platform";
+import { monthRecap, recapLine } from "@/lib/profile/recap";
+import { isValidPin, setPin, signOut, verifyPin } from "@/lib/store/accounts";
+import faceUrl from "@/assets/mascot/head.webp";
 
 function TasteDna() {
   const s = useIntel();
@@ -84,6 +87,202 @@ function Activity({ s }: { s: ReadingStats }) {
         {s.lastMonth > 0 && <span className="muted"> · {s.lastMonth} last month</span>}
       </p>
     </section>
+  );
+}
+
+/** Monthly recap (Phase 5, D32): derived from the farm-proof XP ledger, neutral copy. */
+function MonthlyRecap() {
+  const events = useUser((s) => s.events);
+  const titles = useUser((s) => s.titles);
+  const { rewards } = useSettings();
+  const [which, setWhich] = useState<"0" | "1">("0");
+  const r = useMemo(() => monthRecap(events, titles, Number(which)), [events, titles, which]);
+  return (
+    <section className="profile-block recap-card" aria-labelledby="recap-h">
+      <div className="profile-block-head recap-head">
+        <div>
+          <h2 id="recap-h">{r.label} recap</h2>
+          <p className="muted">{recapLine(r)}</p>
+        </div>
+        <Segmented label="Recap month" value={which} options={[["0", "This month"], ["1", "Last month"]]} onChange={setWhich} />
+      </div>
+      <dl className="recap-grid">
+        {([
+          ["Chapters", r.chapters],
+          ["New series", r.newSeries],
+          ["Completed", r.completed],
+          ["Reading days", r.activeDays],
+          ...(rewards ? [["XP earned", r.xp] as [string, number]] : []),
+        ] as [string, number][]).map(([l, v]) => (
+          <div key={l}>
+            <dt>{l}</dt>
+            <dd>{v.toLocaleString()}</dd>
+          </div>
+        ))}
+      </dl>
+      {r.top.length > 0 && (
+        <div className="recap-row">
+          <h3>Most read</h3>
+          <ol className="recap-top">
+            {r.top.map((t) => {
+              const tt = titles.get(t.titleKey);
+              return (
+                <li key={t.titleKey}>
+                  {tt ? <Link to={titlePath(tt)}>{tt.title}</Link> : <span>A series</span>}
+                  <span className="muted"> · {t.chapters} ch</span>
+                </li>
+              );
+            })}
+          </ol>
+        </div>
+      )}
+      {(r.genres.length > 0 || r.newGenres.length > 0) && (
+        <div className="recap-row">
+          <h3>Genres</h3>
+          <p className="recap-genres">
+            {r.genres.slice(0, 5).map(([g]) => (
+              <Link key={g} className="chip" to={genrePath(g)}>
+                {g}
+                {r.newGenres.includes(g) && <span className="recap-new">new</span>}
+              </Link>
+            ))}
+          </p>
+        </div>
+      )}
+    </section>
+  );
+}
+
+/** Reader card: preview, then share as a PNG (Capacitor Share / Web Share / download). */
+function ReaderCard({ stats }: { stats: ReadingStats }) {
+  const profile = useUser((s) => s.profile)!;
+  const { rewards } = useSettings();
+  const { level } = useProgression();
+  const [open, setOpen] = useState(false);
+  const [img, setImg] = useState<{ url: string; blob: Blob } | null>(null);
+  const make = async () => {
+    setOpen(true);
+    const { drawReaderCard } = await import("@/lib/profile/card");
+    const blob = await drawReaderCard({
+      name: profile.name,
+      color: profile.color,
+      level: rewards ? { level: level.level, tier: level.tier.name, progress: level.progress } : undefined,
+      genres: stats.genres.map(([g]) => g),
+      days: stats.days.map((d) => d.count),
+      stats: [
+        ["Chapters", stats.chaptersRead],
+        ["Series", stats.seriesStarted],
+        ["Completed", stats.completed],
+      ],
+      mascot: faceUrl,
+    });
+    setImg((old) => {
+      if (old) URL.revokeObjectURL(old.url);
+      return { url: URL.createObjectURL(blob), blob };
+    });
+  };
+  const close = () => {
+    setOpen(false);
+    if (img) URL.revokeObjectURL(img.url);
+    setImg(null);
+  };
+  return (
+    <>
+      <button className="btn" onClick={() => void make()}>
+        <Share2 size={16} aria-hidden="true" /> Share reader card
+      </button>
+      <Sheet open={open} onClose={close} title="Your reader card">
+        <div className="stack reader-card-preview">
+          {img ? <img src={img.url} alt={`Reader card for ${profile.name}`} width={540} height={675} /> : <div className="skeleton" style={{ aspectRatio: "4 / 5" }} aria-label="Drawing your card" />}
+          <p className="muted" style={{ fontSize: "var(--text-xs)", margin: 0 }}>
+            Shows your name, {rewards ? "level, " : ""}top genres and a 12-week activity grid. No titles or history.
+          </p>
+          <button
+            className="btn btn-primary"
+            disabled={!img}
+            onClick={async () => {
+              if (!img) return;
+              const { shareCard } = await import("@/lib/profile/card");
+              const r = await shareCard(img.blob);
+              toast(r === "downloaded" ? "Card saved to downloads" : r === "failed" ? "Couldn't share the card" : "Shared");
+            }}
+          >
+            <Share2 size={16} aria-hidden="true" /> {isNative() || "share" in navigator ? "Share" : "Download"}
+          </button>
+        </div>
+      </Sheet>
+    </>
+  );
+}
+
+/** Optional sign-in PIN for this reader (D4, D29). */
+function PinSettings() {
+  const profile = useUser((s) => s.profile)!;
+  const [mode, setMode] = useState<null | "set" | "remove">(null);
+  const [cur, setCur] = useState("");
+  const [next, setNext] = useState("");
+  const [err, setErr] = useState("");
+  const close = () => {
+    setMode(null);
+    setCur("");
+    setNext("");
+    setErr("");
+  };
+  const digits = (v: string) => v.replace(/\D/g, "").slice(0, 4);
+  return (
+    <>
+      <div className="settings-row">
+        <span>
+          <span className="label">
+            <Lock size={14} aria-hidden="true" /> Sign-in PIN
+          </span>
+          <span className="hint">{profile.pin ? "On. Asked when this reader opens. A privacy curtain, not encryption." : "Off. Add one if others use this device."}</span>
+        </span>
+        <span className="cluster">
+          <button className="btn btn-sm" onClick={() => setMode("set")}>
+            {profile.pin ? "Change" : "Add PIN"}
+          </button>
+          {profile.pin && (
+            <button className="btn btn-sm btn-ghost" onClick={() => setMode("remove")}>
+              Remove
+            </button>
+          )}
+        </span>
+      </div>
+      <Sheet open={mode !== null} onClose={close} title={mode === "remove" ? "Remove PIN" : profile.pin ? "Change PIN" : "Add a PIN"}>
+        <form
+          className="stack"
+          onSubmit={async (e) => {
+            e.preventDefault();
+            if (profile.pin && !(await verifyPin(profile, cur))) return setErr("Current PIN doesn't match.");
+            await setPin(mode === "remove" ? null : next);
+            toast(mode === "remove" ? "PIN removed" : "PIN saved");
+            close();
+          }}
+        >
+          {profile.pin && (
+            <label className="field">
+              <span>Current PIN</span>
+              <input className="input" type="password" inputMode="numeric" autoComplete="current-password" maxLength={4} autoFocus value={cur} onChange={(e) => (setErr(""), setCur(digits(e.target.value)))} />
+            </label>
+          )}
+          {mode === "set" && (
+            <label className="field">
+              <span>New 4-digit PIN</span>
+              <input className="input" type="password" inputMode="numeric" autoComplete="new-password" maxLength={4} autoFocus={!profile.pin} value={next} onChange={(e) => setNext(digits(e.target.value))} />
+            </label>
+          )}
+          {err && (
+            <p className="signin-error" role="alert">
+              {err}
+            </p>
+          )}
+          <button className="btn btn-primary" disabled={(profile.pin && !isValidPin(cur)) || (mode === "set" && !isValidPin(next))}>
+            {mode === "remove" ? "Remove PIN" : "Save PIN"}
+          </button>
+        </form>
+      </Sheet>
+    </>
   );
 }
 
@@ -154,6 +353,11 @@ export default function Profile() {
           <Kicker>Your reading universe</Kicker>
           <h1>{profile.name}</h1>
           <p className="muted">Reading, library and recommendations for this profile stay on this device.</p>
+          {hasReading && (
+            <div className="cluster" style={{ marginTop: 12 }}>
+              <ReaderCard stats={stats} />
+            </div>
+          )}
         </div>
       </header>
       <dl className="stat-strip profile-stats" style={{ ["--n" as string]: 4 }}>
@@ -179,6 +383,7 @@ export default function Profile() {
       ) : (
         <>
           <Activity s={stats} />
+          <MonthlyRecap />
           {stats.genres.length > 0 && (
             <section className="profile-block" aria-labelledby="genres-h">
               <div className="profile-block-head">
@@ -233,7 +438,7 @@ export default function Profile() {
             </button>
           ))}
           <button className="chip" onClick={() => setNewOpen(true)}>
-            <Plus size={15} /> New profile
+            <Plus size={15} /> New reader
           </button>
         </div>
         <label className="field" style={{ marginTop: 16 }}>
@@ -247,9 +452,13 @@ export default function Profile() {
           </span>
           <input type="checkbox" checked={profile.prefs.personalize !== false} onChange={(e) => void updateProfile({ prefs: { ...profile.prefs, personalize: e.target.checked } })} />
         </label>
+        <PinSettings />
         <div className="cluster" style={{ marginTop: 8 }}>
           <button className="btn btn-sm" onClick={() => nav("/welcome?edit=1")}>
             Edit favourite genres
+          </button>
+          <button className="btn btn-sm" onClick={() => signOut()}>
+            <LogOut size={15} aria-hidden="true" /> Sign out
           </button>
           {profiles.length > 1 && (
             <button className="btn btn-sm btn-ghost" onClick={() => setConfirm("delete")}>
@@ -361,7 +570,7 @@ export default function Profile() {
         <Link className="footer-link" to="/about">About Dawghwa and credits</Link>
       </p>
 
-      <Sheet open={newOpen} onClose={() => setNewOpen(false)} title="New profile">
+      <Sheet open={newOpen} onClose={() => setNewOpen(false)} title="New reader">
         <form
           className="stack"
           onSubmit={async (e) => {
@@ -372,7 +581,7 @@ export default function Profile() {
             await switchProfile(p.id);
             setNewOpen(false);
             setName("");
-            nav("/welcome");
+            nav("/welcome?new=1");
           }}
         >
           <label className="field">

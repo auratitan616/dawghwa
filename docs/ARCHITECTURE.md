@@ -36,6 +36,9 @@ Everything is derived; nothing about XP, levels or badges is stored.
 ### Comments (DB v2)
 `src/lib/comments.ts` owns the `comments` store: a per-chapter cache with `useChapterComments`, add/edit/pin/vote/delete, and `threads()` for Top/Newest ordering. Each new comment logs a `comment` event (recommender weight null) that feeds quests and the Margin notes set. The UI is in `src/components/Comments.tsx`. The Reader is scroll-only, with a fixed top bar (comments, chapters, settings, plus a 2px progress line) and a chapter-end panel (reward beat, Next Episode, comments preview, credits).
 
+### Readers, sign-in and sharing (Phase 5)
+`src/lib/store/accounts.ts` holds the optional per-profile PIN (salted SHA-256 in `profile.pin`) and the session unlock state (`sessionStorage`). `useSignInRequired()` gates the Shell, Reader and Onboarding, which render `components/SignIn.tsx` instead of content while the active reader is locked or after Sign out. Onboarding (`routes/Onboarding.tsx`) is mascot-led and ends on the first weekly quest. `lib/profile/recap.ts` derives the monthly recap from the XP ledger; `lib/profile/card.ts` (lazy) draws the shareable reader card and shares it via Capacitor Share + Filesystem, Web Share, or a download. See D29 to D33.
+
 ## Routing
 
 `/`, `/discover`, `/search`, `/title/:source/:id/:slug?`, `/library`, `/history`, `/profile`, `/about` inside the shell; `/read/:source/:id/:chapterId` and `/welcome` are full screen. Private routes are disallowed in `robots.txt` and marked `noindex`.

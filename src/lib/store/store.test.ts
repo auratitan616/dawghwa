@@ -92,7 +92,8 @@ describe("export / import", () => {
     await saveProgress(progressUpdate(a, { page: 19, fraction: 1, finished: true }));
     const data = await exportProfile();
     expect(data.format).toBe("dawghwa-profile");
-    expect(JSON.stringify(data)).not.toContain(original);
+    // the id itself isn't exported; only the quest seed travels (D34)
+    expect(JSON.stringify({ ...data, profile: { ...data.profile, questSeed: undefined } })).not.toContain(original);
 
     const imported = await importProfile(JSON.stringify(data));
     expect(imported.id).not.toBe(original);

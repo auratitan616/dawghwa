@@ -12,6 +12,8 @@ import { ErrorState, errorText } from "@/components/States";
 import { useChapters, usePages, useSources, useTitle } from "@/lib/query";
 import { reducedMotion, updateSettings, useSettings } from "@/lib/settings";
 import { saveProgress, useUser } from "@/lib/store/user";
+import { useSignInRequired } from "@/lib/store/accounts";
+import { SignIn } from "@/components/SignIn";
 import { lifecycle, onBack, setImmersive, haptic } from "@/lib/platform";
 import { isMature, readerPath, titlePath } from "@/lib/titles";
 import { threads, useChapterComments } from "@/lib/comments";
@@ -81,7 +83,12 @@ function PageImage({ page, eager, onFail, onLoad, ratio }: { page: ChapterPage; 
   );
 }
 
+/** A PIN-protected profile must be signed into first (D29). */
 export default function Reader() {
+  return useSignInRequired() ? <SignIn /> : <ReaderView />;
+}
+
+function ReaderView() {
   const { source = "", id = "", chapterId = "" } = useParams();
   const [params, setParams] = useSearchParams();
   const nav = useNavigate();
