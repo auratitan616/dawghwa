@@ -22,6 +22,26 @@ test("reader opens a supported chapter without marking it read", async ({ page, 
   await skipOnboarding(page);
   await page.goto(`/read/mangadex/${target!.id}/${target!.chapter}`);
   await expect(page.locator(".reader img, [data-reader] img").first()).toBeAttached({ timeout: 25_000 });
+  // Scroll-only reader: the top bar stays put while scrolling, and there is no bottom bar.
+  const bar = page.locator(".rd-top");
+  await expect(bar).toBeVisible();
+  await page.mouse.wheel(0, 1200);
+  await page.waitForTimeout(300);
+  await expect(bar).toBeInViewport();
+  expect((await bar.boundingBox())!.y).toBe(0);
+  await expect(page.locator(".rd-bottom")).toHaveCount(0);
+  await expect(page.getByRole("progressbar", { name: "Chapter progress" })).toBeAttached();
+  // Comments live in the top bar: open, post, and see the count.
+  await page.getByRole("button", { name: "Comments (0)" }).click();
+  const sheet = page.getByRole("dialog", { name: "Comments (0)" });
+  await expect(sheet.getByRole("tab", { name: "Top" })).toHaveAttribute("aria-selected", "true");
+  await sheet.getByPlaceholder("Leave a comment").fill("That last panel!");
+  await sheet.getByRole("button", { name: "Post" }).click();
+  await expect(page.getByRole("dialog", { name: "Comments (1)" }).getByText("That last panel!")).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("button", { name: "Comments (1)" })).toBeVisible();
+  await page.mouse.wheel(0, -5000);
+  await page.waitForTimeout(300);
   // Position is saved after a short debounce (and on pause/pagehide).
   await page.waitForTimeout(1500);
   await page.goto("/history");

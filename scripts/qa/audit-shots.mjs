@@ -17,7 +17,7 @@ for (const theme of THEMES) for (const vp of VPS) {
   const errs = [];
   page.on("pageerror", (e) => errs.push(e.message));
   const shot = async (name, full = false) => { await page.screenshot({ path: `${out}/${theme}-${vp.name}-${name}.png`, fullPage: full }); };
-  await page.addInitScript((t) => { try { const s = JSON.parse(localStorage.getItem("dawghwa:settings") || "{}"); s.theme = t; s.readerMode = "vertical"; localStorage.setItem("dawghwa:settings", JSON.stringify(s)); } catch {} }, theme);
+  await page.addInitScript((t) => { try { const s = JSON.parse(localStorage.getItem("dawghwa:settings") || "{}"); s.theme = t; localStorage.setItem("dawghwa:settings", JSON.stringify(s)); } catch {} }, theme);
   await page.goto(base + "/welcome");
   await page.waitForTimeout(1500);
   await shot("welcome");
@@ -40,6 +40,9 @@ for (const theme of THEMES) for (const vp of VPS) {
     await page.goto(base + readUrl);
     await page.waitForTimeout(6000);
     await shot("reader");
+    await page.evaluate(() => window.scrollBy(0, window.innerHeight * 3));
+    await page.waitForTimeout(1500);
+    await shot("reader-mid");
     // Step down like a reader would, so lazy pages load and the end marker is reached.
     for (let i = 0; i < 80; i++) {
       await page.evaluate(() => window.scrollBy(0, window.innerHeight * 2));
@@ -49,6 +52,16 @@ for (const theme of THEMES) for (const vp of VPS) {
     await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
     await page.waitForTimeout(2500);
     await shot("reader-end");
+    const cm = page.getByRole("button", { name: /^Comments \(/ });
+    if (await cm.count()) {
+      await cm.first().click();
+      const box = page.getByPlaceholder("Leave a comment");
+      await box.fill("The splash page at the end was worth the wait 🔥");
+      await page.getByRole("button", { name: "Post" }).click();
+      await page.waitForTimeout(800);
+      await shot("reader-comments");
+      await page.keyboard.press("Escape");
+    }
     // After one finished chapter: the derived reward surfaces have something to show.
     for (const [name, path] of (process.env.AFTER || "").split(",").filter(Boolean).map((r) => [`${r.replace(/\W/g, "") || "home"}-after`, r])) {
       await page.goto(base + path);

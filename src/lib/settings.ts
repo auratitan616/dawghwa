@@ -7,19 +7,13 @@ import { kvGet, kvSet } from "./store/db";
  */
 
 export type ThemePref = "system" | "dark" | "light";
-export type ReaderMode = "auto" | "vertical" | "single" | "double";
-export type Fit = "width" | "height" | "original";
 
 export interface Settings {
   theme: ThemePref;
   reduceMotion: "system" | "on" | "off";
-  readerMode: ReaderMode;
-  direction: "rtl" | "ltr";
-  fit: Fit;
+  /** The reader is scroll-only (D8): older layout, direction, fit, gap and tap-zone settings are dropped on load. */
   autoNext: boolean;
   dataSaver: boolean;
-  pageGap: boolean;
-  tapZones: boolean;
   /**
    * Profile > Rewards. Off hides every gamified surface: the Awards tab, XP, levels,
    * quests, badges, progress rings and reward beats. Nothing is deleted; it is all derived.
@@ -32,20 +26,17 @@ export interface Settings {
 export const DEFAULT_SETTINGS: Settings = {
   theme: "dark",
   reduceMotion: "system",
-  readerMode: "auto",
-  direction: "rtl",
-  fit: "width",
   autoNext: true,
   dataSaver: false,
-  pageGap: false,
-  tapZones: true,
   rewards: true,
   matureCovers: "blur",
 };
 
 /** Older builds stored `achievements` (milestones on/off); it becomes `rewards`. */
+const RETIRED = ["readerMode", "direction", "fit", "pageGap", "tapZones"] as const;
 export function migrateSettings(raw: Partial<Settings> & { achievements?: boolean }): Partial<Settings> {
-  const { achievements, ...rest } = raw;
+  const { achievements, ...rest } = raw as Partial<Settings> & { achievements?: boolean } & Record<string, unknown>;
+  for (const k of RETIRED) delete (rest as Record<string, unknown>)[k];
   if (rest.rewards === undefined && typeof achievements === "boolean") rest.rewards = achievements;
   return rest;
 }

@@ -161,9 +161,9 @@ export async function updateProfile(patch: Partial<Omit<ProfileRecord, "id">>) {
 export async function deleteProfile(id: string) {
   const d = await db();
   if (state.profiles.length <= 1) throw new Error("Keep at least one profile");
-  const tx = d.transaction(["profiles", "library", "progress", "hidden", "events", "intel"], "readwrite");
+  const tx = d.transaction(["profiles", "library", "progress", "hidden", "events", "comments", "intel"], "readwrite");
   await tx.objectStore("profiles").delete(id);
-  for (const name of ["library", "progress", "hidden", "events"] as const) {
+  for (const name of ["library", "progress", "hidden", "events", "comments"] as const) {
     const store = tx.objectStore(name);
     const keys = await store.index("byProfile").getAllKeys(id);
     for (const k of keys) await store.delete(k);

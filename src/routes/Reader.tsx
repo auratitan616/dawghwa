@@ -1,31 +1,42 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
-import { ArrowLeft, Bookmark as BookmarkIcon, BookmarkCheck, Check, ChevronLeft, ChevronRight, ListOrdered, Maximize2, Minimize2, RotateCw, Settings2, X } from "lucide-react";
+import { ArrowLeft, Bookmark as BookmarkIcon, BookmarkCheck, Check, ChevronLeft, ChevronRight, ListOrdered, Maximize2, MessageCircle, Minimize2, RotateCw, Settings2, X } from "lucide-react";
 import { Mascot } from "@/components/Mascot";
 import { ChapterNo } from "@/components/Editorial";
 import { Sheet } from "@/components/Layer";
+import { Cover } from "@/components/Cover";
+import { ProgressRing } from "@/components/ProgressRing";
+import { CommentList, CommentsSheet } from "@/components/Comments";
+import { Celebrations } from "@/components/Celebrate";
 import { ErrorState, errorText } from "@/components/States";
 import { useChapters, usePages, useSources, useTitle } from "@/lib/query";
-import { updateSettings, useSettings, type Fit, type ReaderMode } from "@/lib/settings";
+import { reducedMotion, updateSettings, useSettings } from "@/lib/settings";
 import { saveProgress, useUser } from "@/lib/store/user";
 import { lifecycle, onBack, setImmersive, haptic } from "@/lib/platform";
-import { prefersVertical, readerPath, titlePath, type Title } from "@/lib/titles";
+import { isMature, readerPath, titlePath } from "@/lib/titles";
+import { threads, useChapterComments } from "@/lib/comments";
+import type { Moment } from "@/lib/rewards/runtime";
 import { useHead } from "@/lib/seo";
 import type { Chapter, ChapterPage, ChapterVariant } from "@/lib/api/types";
 import { api } from "@/lib/api/endpoints";
 import { chapterAliases, chapterBadge, chapterLabel, editionLabel, fallbackPlan, findChapter, isChapterRead, languageLabel, mapPosition, pickVariant, variantIdOf } from "@/lib/chapters";
 import { isBookmarked, removeBookmark, toggleBookmark, useBookmarks } from "@/lib/store/bookmarks";
 
-type Mode = Exclude<ReaderMode, "auto">;
+/**
+ * Scroll-only reader (D8). The top bar is always on screen (D9) and carries the
+ * chapter's comments and a 2px progress line on its bottom edge (D10); there is
+ * no bottom bar. The chapter end holds the reward beat, the next episode and
+ * comments, so nothing ever interrupts a chapter in progress.
+ */
 
 /** One page image: reserves space before load, retries on failure, never fakes content. */
-function PageImage({ page, eager, onFail, onLoad, ratio, fit }: { page: ChapterPage; eager: boolean; onFail: (i: number) => void; onLoad: (i: number, r: number) => void; ratio?: number; fit: Fit }) {
+function PageImage({ page, eager, onFail, onLoad, ratio }: { page: ChapterPage; eager: boolean; onFail: (i: number) => void; onLoad: (i: number, r: number) => void; ratio?: number }) {
   const [attempt, setAttempt] = useState(0);
   const [state, setState] = useState<"loading" | "ok" | "error">("loading");
   const src = attempt === 0 ? page.url : `${page.url}${page.url.includes("?") ? "&" : "?"}r=${attempt}`;
   const ar = ratio ?? (page.width && page.height ? page.height / page.width : undefined);
   return (
-    <div className={`rd-page rd-fit-${fit}`} data-state={state} style={ar ? ({ "--ar": ar } as React.CSSProperties) : undefined} data-index={page.index}>
+    <div className="rd-page" data-state={state} style={ar ? ({ "--ar": ar } as React.CSSProperties) : undefined} data-index={page.index}>
       {state !== "error" && (
         <img
           key={src}
@@ -46,7 +57,11 @@ function PageImage({ page, eager, onFail, onLoad, ratio, fit }: { page: ChapterP
           }}
         />
       )}
-      {state === "loading" && <span className="rd-page-num" aria-hidden="true">{page.index + 1}</span>}
+      {state === "loading" && (
+        <span className="rd-page-num" aria-hidden="true">
+          {page.index + 1}
+        </span>
+      )}
       {state === "error" && (
         <div className="rd-page-error" role="alert">
           <p>Page {page.index + 1} didn't load.</p>
@@ -66,30 +81,26 @@ function PageImage({ page, eager, onFail, onLoad, ratio, fit }: { page: ChapterP
   );
 }
 
-function useReaderMode(title: Title | undefined): Mode {
-  const s = useSettings();
-  if (s.readerMode !== "auto") return s.readerMode;
-  return prefersVertical(title) ? "vertical" : "single";
-}
-
 export default function Reader() {
   const { source = "", id = "", chapterId = "" } = useParams();
   const [params, setParams] = useSearchParams();
   const nav = useNavigate();
-  const [pageRefreshKey, setPageRefreshKey] = useState(0);
   const settings = useSettings();
   const sources = useSources();
   const t = useTitle(source, id);
   const title = t.data;
   const chapters = useChapters(title);
   const prog = useUser((s) => (title ? s.progress.get(title.key) : undefined));
+  const [pageRefreshKey, setPageRefreshKey] = useState(0);
+
+  // ------------------------------------------------------------ chapter + version
   const all = useMemo(() => chapters.data?.chapters ?? [], [chapters.data]);
   const found = findChapter(all, chapterId);
   const chapter: Chapter | undefined = found?.chapter;
   // Prev/next stay in the current chapter's translation language: never switch language silently.
   const list = useMemo(() => (chapter ? all.filter((c) => (c.language ?? "und") === (chapter.language ?? "und")) : all), [all, chapter]);
   const idx = chapter ? list.indexOf(chapter) : -1;
-  const sameChapter = (id: string | undefined) => Boolean(id && chapter && chapterAliases(chapter).includes(id));
+  const sameChapter = (cid: string | undefined) => Boolean(cid && chapter && chapterAliases(chapter).includes(cid));
   const [failed, setFailed] = useState<Set<string>>(() => new Set());
   const [notice, setNotice] = useState<{ kind: "fallback" | "approx" | "manual"; text: string } | null>(null);
   const [needsChoice, setNeedsChoice] = useState<{ failed: ChapterVariant; options: ChapterVariant[] } | null>(null);
@@ -108,10 +119,9 @@ export default function Reader() {
   const activeChapterId = selectedVariant?.providerChapterId ?? chapterId;
   const chapterKey = chapter?.id ?? chapterId;
   const src = sources.data?.find((s) => s.id === activeSource);
-  const readable = Boolean(selectedVariant);
-  const pagesQ = usePages(activeSource, activeChapterId, settings.dataSaver, readable, selectedVariant?.url, pageRefreshKey);
-  const mode = useReaderMode(title);
-  const rtl = settings.direction === "rtl" && mode !== "vertical";
+  // unified rows always carry variants; a legacy single-source list falls back to the source capability
+  const readable = selectedVariant ? true : sources.data ? Boolean(sources.data.find((s) => s.id === source)?.capabilities.chapterPages) : true;
+  const pagesQ = usePages(activeSource, activeChapterId, settings.dataSaver, readable && (Boolean(selectedVariant) || chapters.isSuccess || chapters.isError), selectedVariant?.url, pageRefreshKey);
   const pages = useMemo(() => pagesQ.data?.pages ?? [], [pagesQ.data]);
   const count = pages.length;
   const prev = idx > 0 ? list[idx - 1] : undefined;
@@ -124,22 +134,35 @@ export default function Reader() {
   const carried = carry && carry.variantId === activeVariantId && count ? mapPosition(carry.page, carry.count, count) : undefined;
   const startPage = carried ? carried.page : paramPage;
   const [page, setPage] = useState(startPage);
-  const [controls, setControls] = useState(true);
   const [panel, setPanel] = useState(false);
   const [chList, setChList] = useState(false);
+  const commentsOpen = params.get("comments");
+  const setComments = useCallback(
+    (v: false | "read" | "write") =>
+      setParams((p) => (v ? p.set("comments", v) : p.delete("comments"), p), {
+        replace: true,
+      }),
+    [setParams],
+  );
   useEffect(() => {
     if (chList) requestAnimationFrame(() => document.querySelector('.rd-ch[aria-current="true"]')?.scrollIntoView({ block: "center" }));
   }, [chList]);
   const [ratios, setRatios] = useState<Record<number, number>>({});
   const [failures, setFailures] = useState(0);
   const [reachedEnd, setReachedEnd] = useState(false);
-  const [endView, setEndView] = useState(false);
   const [countdown, setCountdown] = useState<number | null>(null);
+  const [beat, setBeat] = useState<Moment | null>(null);
   const scroller = useRef<HTMLDivElement>(null);
   const restored = useRef(false);
   const pageRefreshAt = useRef(0);
+  // comments belong to the canonical chapter, so every version of it shares them
+  const target = useMemo(() => (title && chapterKey ? { title, chapterId: chapterKey, chapterNumber: chapter?.number } : undefined), [title, chapterKey, chapter?.number]);
+  const { items: comments } = useChapterComments(chapterKey);
 
-  useHead({ title: title ? `${title.title}${chapter ? ` · ${chapterLabel(chapter)}` : ""}` : "Reader", noindex: true });
+  useHead({
+    title: title ? `${title.title}${chapter ? ` · ${chapterLabel(chapter)}` : ""}` : "Reader",
+    noindex: true,
+  });
 
   // Older links and history use provider chapter ids; move them to the canonical chapter key
   // and pin the version they referred to (same source, same upload).
@@ -150,21 +173,20 @@ export default function Reader() {
     nav(readerPath(title, found.chapter.id, p ? Number(p) : undefined, v?.sourceId ?? preferredSource ?? undefined, v ? variantIdOf(v) : undefined), { replace: true });
   }, [found, title, chapterId]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // reset per chapter
+  // reset per chapter and per version
   useEffect(() => {
     setPage(startPage);
     setCountdown(null);
     setReachedEnd(false);
-    setEndView(false);
     setFailures(0);
     setPageRefreshKey(0);
     setRatios({});
     restored.current = false;
     pageRefreshAt.current = 0;
   }, [chapterKey, activeVariantId]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // a new chapter starts with a clean failure list and no stale notices
+  // a new chapter starts with no reward beat, a clean failure list and no stale notices
   useEffect(() => {
+    setBeat(null);
     setFailed(new Set());
     setNeedsChoice(null);
     setNotice((n) => (n?.kind === "fallback" || n?.kind === "approx" ? n : null));
@@ -188,14 +210,35 @@ export default function Reader() {
     }, { replace: true });
   }, [carry, activeVariantId, count]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // immersive system bars follow the controls
+  // Android: the status bar hides while reading; the reader's own top bar stays (D9).
   useEffect(() => {
-    void setImmersive(!controls);
-  }, [controls]);
-  useEffect(() => () => void setImmersive(false), []);
+    void setImmersive(true);
+    return () => void setImmersive(false);
+  }, []);
+
+  // Reward moments land in the end panel instead of a floating card (never mid-chapter:
+  // chapter_read is emitted only once the end is reached).
+  useEffect(() => {
+    if (!settings.rewards) return;
+    let off = false;
+    let reset: (() => void) | undefined;
+    void import("@/lib/rewards/runtime").then((m) => {
+      if (off) return;
+      m.startRewards();
+      m.setRewardSink((g) => {
+        setBeat((b) => mergeMoment(b, g));
+        if (!reducedMotion()) void haptic("success");
+      });
+      reset = () => m.setRewardSink(null);
+    });
+    return () => {
+      off = true;
+      reset?.();
+    };
+  }, [settings.rewards]);
 
   // ------------------------------------------------------------ progress
-  // vertical mode: the page at the top of the viewport and how far into it the reader is
+  // the page at the top of the viewport and how far into it the reader is
   const anchor = useRef<{ page: number; offset: number } | null>(null);
   const latest = useRef({ page, reachedEnd });
   latest.current = { page, reachedEnd };
@@ -205,8 +248,8 @@ export default function Reader() {
     (finished = latest.current.reachedEnd) => {
       if (!title || !chapter || !count) return;
       // measure at save time: images above may have changed height since the last scroll event
-      if (mode === "vertical" && scroller.current && !pinning.current) anchor.current = measureAnchor(scroller.current) ?? anchor.current;
-      const a = mode === "vertical" ? anchor.current : null;
+      if (scroller.current && !pinning.current) anchor.current = measureAnchor(scroller.current) ?? anchor.current;
+      const a = anchor.current;
       const p = Math.min(a ? a.page : latest.current.page, count - 1);
       writePos(chapter.id, p, a?.offset);
       void saveProgress({
@@ -225,7 +268,7 @@ export default function Reader() {
         lastChapterNumber: list.at(-1)?.number,
       });
     },
-    [title, chapter, count, list, mode, selectedVariant],
+    [title, chapter, count, list, selectedVariant],
   );
   const saveRef = useRef(save);
   saveRef.current = save;
@@ -254,9 +297,9 @@ export default function Reader() {
     };
   }, [save]);
 
-  // ------------------------------------------------------------ vertical tracking
+  // ------------------------------------------------------------ tracking
   useEffect(() => {
-    if (mode !== "vertical" || !count || !scroller.current) return;
+    if (!count || !scroller.current) return;
     const root = scroller.current;
     const vis = new Map<number, number>();
     const io = new IntersectionObserver(
@@ -270,26 +313,35 @@ export default function Reader() {
       { threshold: [0, 0.25, 0.5, 0.75, 1] },
     );
     root.querySelectorAll<HTMLElement>(".rd-page").forEach((el) => io.observe(el));
-    const end = root.querySelector(".rd-end");
-    const endIo = new IntersectionObserver((es) => es.some((e) => e.isIntersecting) && setReachedEnd(true), { threshold: 0.3 });
+    // the end marker sits right after the last page: reaching it is "last page reached"
+    const end = root.querySelector(".rd-end-mark");
+    const endIo = new IntersectionObserver((es) => es.some((e) => e.isIntersecting) && setReachedEnd(true), { threshold: 0 });
     if (end) endIo.observe(end);
     return () => {
       io.disconnect();
       endIo.disconnect();
     };
-  }, [mode, count, chapterKey, activeVariantId]);
+  }, [count, chapterKey, activeVariantId]);
 
-  // track the exact reading position (page at the viewport top + offset inside it), saved with progress
+  // live reading fraction for the top bar line (scroll position through the pages)
+  const [fraction, setFraction] = useState(0);
   useEffect(() => {
-    if (mode !== "vertical" || !count) return;
+    if (!count) return;
     let raf = 0;
     let last = 0;
     let trailing = 0;
     const on = () => {
       cancelAnimationFrame(raf);
       raf = requestAnimationFrame(() => {
-        if (!scroller.current) return;
-        anchor.current = measureAnchor(scroller.current) ?? anchor.current;
+        const root = scroller.current;
+        if (!root) return;
+        anchor.current = measureAnchor(root) ?? anchor.current;
+        const strip = root.querySelector<HTMLElement>(".rd-pages");
+        if (strip) {
+          const r = strip.getBoundingClientRect();
+          const span = r.height - window.innerHeight;
+          setFraction(span > 0 ? Math.min(1, Math.max(0, -r.top / span)) : 1);
+        }
         // throttled save (~500ms) plus a trailing save once scrolling settles
         const now = Date.now();
         if (restored.current && !pinning.current && now - last > 500) {
@@ -301,17 +353,18 @@ export default function Reader() {
       });
     };
     window.addEventListener("scroll", on, { passive: true });
+    on();
     return () => {
       cancelAnimationFrame(raf);
       clearTimeout(trailing);
       window.removeEventListener("scroll", on);
     };
-  }, [mode, count, chapterKey, activeVariantId]);
+  }, [count, chapterKey, activeVariantId]);
 
   // restore the saved position once pages exist; keep it pinned while images above it load
   // and change height, until the reader scrolls or touches the page themselves
   useEffect(() => {
-    if (mode !== "vertical" || !count || !title || restored.current) return;
+    if (!count || !title || restored.current) return;
     restored.current = true;
     anchor.current = null;
     const offset = carried ? 0 : fresh && fresh.page === startPage ? (fresh.offset ?? 0) : sameChapter(prog?.chapterId) && prog!.page === startPage ? (prog!.offset ?? 0) : 0;
@@ -321,7 +374,7 @@ export default function Reader() {
     const pin = () => {
       const el = root.querySelector<HTMLElement>(`[data-index="${startPage}"]`);
       if (!el) return;
-      const top = el.getBoundingClientRect().top + window.scrollY + el.offsetHeight * offset;
+      const top = el.getBoundingClientRect().top + window.scrollY + el.offsetHeight * offset - barHeight();
       window.scrollTo(0, Math.max(0, top - 1));
     };
     requestAnimationFrame(pin);
@@ -337,20 +390,8 @@ export default function Reader() {
     const tm = setTimeout(stop, 8000);
     for (const e of ["wheel", "touchstart", "keydown", "pointerdown"]) window.addEventListener(e, stop, { passive: true, once: true });
     return stop;
-  }, [mode, count, startPage, title, activeVariantId]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [count, startPage, title, activeVariantId]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  useEffect(() => {
-    if (count > 0 && page >= count) setPage(count - 1);
-  }, [count, page]);
-
-  // ------------------------------------------------------------ paged
-  const spreads = useMemo(() => {
-    if (mode !== "double") return pages.map((_, i) => [i]);
-    const out: number[][] = [[0]];
-    for (let i = 1; i < count; i += 2) out.push(i + 1 < count ? [i, i + 1] : [i]);
-    return out;
-  }, [mode, pages, count]);
-  const spreadIdx = Math.max(0, spreads.findIndex((s) => s.includes(page)));
   const goChapter = useCallback(
     (c?: Chapter) => {
       if (!c || !title) return;
@@ -362,110 +403,21 @@ export default function Reader() {
     },
     [nav, title, save, activeSource, selectedVariant],
   );
-  const step = useCallback(
-    (dir: 1 | -1) => {
-      if (mode === "vertical") {
-        window.scrollBy({ top: dir * window.innerHeight * 0.85, behavior: "smooth" });
-        return;
-      }
-      if (endView) {
-        if (dir === 1) goChapter(next);
-        else setEndView(false);
-        return;
-      }
-      const ni = spreadIdx + dir;
-      if (ni >= spreads.length) {
-        setReachedEnd(true);
-        setEndView(true);
-        return;
-      }
-      if (ni < 0) return;
-      const target = spreads[ni]!;
-      setPage(target[0]!);
-      if (ni === spreads.length - 1) setReachedEnd(true);
-    },
-    [mode, spreadIdx, spreads, endView, next, goChapter],
-  );
-  useEffect(() => {
-    if (mode !== "vertical" && spreads.length && spreadIdx === spreads.length - 1) setReachedEnd(true);
-  }, [mode, spreads, spreadIdx]);
-
-  // keyboard
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (panel || chList || e.target instanceof HTMLInputElement || e.target instanceof HTMLSelectElement) return;
-      const fwd = rtl ? "ArrowLeft" : "ArrowRight";
-      const back = rtl ? "ArrowRight" : "ArrowLeft";
-      if (e.key === fwd || (mode !== "vertical" && (e.key === " " || e.key === "PageDown"))) {
-        e.preventDefault();
-        step(1);
-      } else if (e.key === back || (mode !== "vertical" && e.key === "PageUp")) {
-        e.preventDefault();
-        step(-1);
-      }
-      else if (e.key === "]") goChapter(next);
-      else if (e.key === "[") goChapter(prev);
-      else if (e.key === "m") setControls((c) => !c);
-      else if (e.key === "Escape") setControls(true);
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [rtl, mode, step, goChapter, next, prev, panel, chList]);
-
-  // Android back / Escape: close panel, then leave to the title page
-  useEffect(
-    () =>
-      onBack(() => {
-        if (panel) return (setPanel(false), true);
-        if (chList) return (setChList(false), true);
-        if (title) nav(titlePath(title), { replace: true });
-        else nav(-1);
-        return true;
-      }),
-    [panel, chList, title, nav],
-  );
-
-  // swipe for paged modes
-  const touch = useRef<{ x: number; y: number; t: number } | null>(null);
-  const onPointerDown = (e: React.PointerEvent) => {
-    if (e.pointerType === "mouse") return;
-    touch.current = { x: e.clientX, y: e.clientY, t: Date.now() };
-  };
-  const onPointerUp = (e: React.PointerEvent) => {
-    const s = touch.current;
-    touch.current = null;
-    if (!s || mode === "vertical") return;
-    const dx = e.clientX - s.x;
-    const dy = e.clientY - s.y;
-    if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy) * 1.5 && Date.now() - s.t < 600) {
-      const forward = rtl ? dx > 0 : dx < 0;
-      step(forward ? 1 : -1);
-      swiped.current = true;
-    }
-  };
-  const swiped = useRef(false);
-  const onTap = (e: React.MouseEvent) => {
-    if (swiped.current) return void (swiped.current = false);
-    if ((e.target as HTMLElement).closest("button, a")) return;
-    const x = e.clientX / window.innerWidth;
-    if (mode === "vertical" || !settings.tapZones || (x > 0.3 && x < 0.7)) return setControls((c) => !c);
-    const forward = rtl ? x < 0.3 : x > 0.7;
-    step(forward ? 1 : -1);
-  };
 
   /** Switch to another version of the same chapter, carrying the reading position. */
   const switchVariant = useCallback(
     (v: ChapterVariant, why: "manual" | "fallback") => {
       if (!chapter) return;
       if (why === "manual") save();
-      const id = variantIdOf(v);
-      setCarry({ page: Math.min(page, Math.max(0, count - 1)), count, variantId: id });
+      const vid = variantIdOf(v);
+      const at = Math.min(anchor.current?.page ?? page, Math.max(0, count - 1));
+      setCarry({ page: at, count, variantId: vid });
       setNeedsChoice(null);
       setParams((cur) => {
         const np = new URLSearchParams(cur);
         np.set("s", v.sourceId);
-        np.set("v", id);
-        np.set("p", String(page));
+        np.set("v", vid);
+        np.set("p", String(at));
         return np;
       }, { replace: true });
     },
@@ -543,6 +495,32 @@ export default function Reader() {
     else void document.documentElement.requestFullscreen?.().catch(() => setNotice({ kind: "manual", text: "Fullscreen isn't available here." }));
   };
 
+  // keyboard: the page scrolls natively; [ and ] change chapter, C opens comments
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (panel || chList || commentsOpen || e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement || e.target instanceof HTMLSelectElement) return;
+      if (e.key === "]") goChapter(next);
+      else if (e.key === "[") goChapter(prev);
+      else if (e.key === "c" && target) setComments("read");
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [goChapter, next, prev, panel, chList, commentsOpen, target, setComments]);
+
+  // Android back / Escape: close a layer, then leave to the title page
+  useEffect(
+    () =>
+      onBack(() => {
+        if (panel) return (setPanel(false), true);
+        if (chList) return (setChList(false), true);
+        if (commentsOpen) return (setComments(false), true);
+        if (title) nav(titlePath(title), { replace: true });
+        else nav(-1);
+        return true;
+      }),
+    [panel, chList, commentsOpen, setComments, title, nav],
+  );
+
   const onLoad = useCallback((i: number, r: number) => setRatios((m) => (m[i] === r ? m : { ...m, [i]: r })), []);
   const onFail = useCallback(() => {
     setFailures((n) => n + 1);
@@ -554,13 +532,13 @@ export default function Reader() {
     }
   }, []);
 
-  // auto-advance: countdown on the end panel
+  // auto-advance: countdown on the end panel. Paused while comments are open.
   useEffect(() => {
-    if (!reachedEnd || !settings.autoNext || !next || mode !== "vertical") return setCountdown(null);
-    setCountdown(5);
+    if (!reachedEnd || !settings.autoNext || !next || commentsOpen) return setCountdown(null);
+    setCountdown(8);
     const iv = setInterval(() => setCountdown((c) => (c === null ? null : c - 1)), 1000);
     return () => clearInterval(iv);
-  }, [reachedEnd, settings.autoNext, next, mode]);
+  }, [reachedEnd, settings.autoNext, next, commentsOpen]);
   // Fire once per countdown: clear it before navigating, so the next chapter's "next" can't re-trigger it.
   useEffect(() => {
     if (countdown !== 0) return;
@@ -568,71 +546,93 @@ export default function Reader() {
     goChapter(next);
   }, [countdown, goChapter, next]);
 
-  // preload upcoming pages in paged mode
-  useEffect(() => {
-    if (mode === "vertical") return;
-    for (let i = page + 1; i < Math.min(count, page + 4); i++) {
-      const img = new Image();
-      img.decoding = "async";
-      img.src = pages[i]!.url;
-    }
-  }, [mode, page, pages, count]);
-
   const sourceName = src?.name ?? selectedVariant?.source ?? title?.sourceName ?? activeSource;
   const backTo = title ? titlePath(title) : "/";
 
   // ------------------------------------------------------------ states
-  if (chapters.isSuccess && !readable)
+  if ((chapters.isSuccess || sources.data) && !readable)
     return (
       <div className="reader reader-msg">
         <div className="state state-center">
           <h1 style={{ fontSize: "var(--text-xl)" }}>This chapter isn't readable in Dawghwa yet</h1>
-          <p>No compatible source supplied an in-app page reader for this chapter. Choose another available chapter version from the title page.</p>
+          <p>No compatible source supplied in-app pages for this chapter. Pick another chapter or version from the title page.</p>
           <div className="cluster">
-            <Link className="btn btn-primary" to={backTo}>Back to title</Link>
+            <Link className="btn btn-primary" to={backTo}>
+              Back to title
+            </Link>
           </div>
         </div>
       </div>
     );
 
+  const top = threads(comments, "top");
   const endPanel = (
-    <div className="rd-end" aria-live="polite">
-      <Mascot variant="head" size={72} className="rd-end-mascot" />
-      <p className="rd-end-kicker">
-        End of <ChapterNo n={chapter?.number} label={chapter && chapter.numberText !== undefined ? chapterBadge(chapter) : undefined} />
-      </p>
+    <section className="rd-end" aria-label="End of chapter">
+      <div className="rd-end-head">
+        <p className="rd-end-kicker">
+          End of <ChapterNo n={chapter?.number} label={chapter && chapter.numberText !== undefined ? chapterBadge(chapter) : undefined} />
+        </p>
+        {beat && settings.rewards ? <RewardBeat m={beat} /> : <Mascot variant="head" size={64} className="rd-end-mascot" />}
+      </div>
+
       {next ? (
-        <>
-          <h2 className="rd-end-title">One more chapter?</h2>
-          <button className="btn btn-primary btn-lg" onClick={() => goChapter(next)}>
-            {chapterLabel(next)} <ChevronRight size={18} />
+        <div className="rd-next">
+          <button className="rd-next-card" onClick={() => goChapter(next)}>
+            {title && <Cover src={title.cover} title={title.title} sizes="64px" mature={isMature(title)} />}
+            <span className="rd-next-body">
+              <span className="rd-next-kicker">Next episode</span>
+              <span className="rd-next-title">{chapterLabel(next)}</span>
+            </span>
+            <ChevronRight size={20} aria-hidden="true" />
           </button>
           {countdown !== null && countdown > 0 && (
-            <p className="rd-countdown">
-              Continuing in {countdown}s ·{" "}
+            <p className="rd-countdown" aria-live="polite">
+              Next chapter in {countdown}s ·{" "}
               <button className="link-btn" onClick={() => setCountdown(null)}>
                 Stay here
               </button>
             </p>
           )}
-        </>
+        </div>
       ) : list.length ? (
-        <>
+        <div className="rd-caught">
           <h2 className="rd-end-title">You're caught up</h2>
           <p className="rd-end-note">This is the latest chapter on {sourceName}. New chapters show up on Home when they're released.</p>
-        </>
+        </div>
       ) : null}
-      <Link className="btn btn-ghost" to={backTo}>
-        Back to title
-      </Link>
-    </div>
+
+      {target && (
+        <div className="rd-comments">
+          <div className="rd-comments-head">
+            <h2>Comments {comments.length ? <span className="tabular">({comments.length})</span> : null}</h2>
+            {comments.length > 0 && (
+              <button className="link-btn" onClick={() => setComments("read")}>
+                See all
+              </button>
+            )}
+          </div>
+          {top.length ? <CommentList list={top} target={target} limit={2} /> : <p className="rd-end-note">Jot down a reaction to this chapter. Only you can see it.</p>}
+          <button className="rd-leave" onClick={() => setComments("write")}>
+            <MessageCircle size={18} aria-hidden="true" /> Leave a comment
+          </button>
+        </div>
+      )}
+
+      <p className="rd-credits">Credits: {[selectedVariant?.group?.name ?? chapter?.group?.name, `via ${prettySource(sourceName)}`, chapter?.language ? languageLabel(selectedVariant?.language ?? chapter.language) : null].filter(Boolean).join(" · ")}</p>
+      <div className="rd-end-links">
+        {prev && (
+          <button className="btn btn-ghost" onClick={() => goChapter(prev)}>
+            <ChevronLeft size={16} /> {chapterLabel(prev)}
+          </button>
+        )}
+        <Link className="btn btn-ghost" to={backTo}>
+          Back to title
+        </Link>
+      </div>
+    </section>
   );
 
-  const body = chapters.isError ? (
-    <div className="state state-center">
-      <ErrorState error={chapters.error} retry={() => void chapters.refetch()} />
-    </div>
-  ) : needsChoice ? (
+  const body = needsChoice ? (
     <div className="state state-center rd-choice" role="alert">
       <h2>{needsChoice.failed.source} couldn't load this chapter</h2>
       <p>
@@ -664,44 +664,47 @@ export default function Reader() {
     <div className="state state-center">
       <h2>This chapter has no readable pages</h2>
       <p>{sourceName} did not return any pages{chapter && (chapter.variants?.length ?? 0) > 1 ? ", and no other version in the same language and edition could be used automatically. You can pick a version in the reader settings." : ", and no other source has this chapter in the same language."}</p>
-      <Link className="btn" to={backTo}>Back to title</Link>
+      <Link className="btn" to={backTo}>
+        Back to title
+      </Link>
     </div>
-  ) : mode === "vertical" ? (
-    <div className={`rd-strip ${settings.pageGap ? "rd-gap" : ""}`} ref={scroller}>
-      {pages.map((p) => (
-        <PageImage key={p.url} page={p} eager={Math.abs(p.index - startPage) < 3} onFail={onFail} onLoad={onLoad} ratio={ratios[p.index]} fit="width" />
-      ))}
-      {endPanel}
-    </div>
-  ) : endView ? (
-    endPanel
   ) : (
-    <div className={`rd-spread ${rtl ? "rd-rtl" : ""} rd-fit-${settings.fit}`} data-count={spreads[spreadIdx]?.length}>
-      {(spreads[spreadIdx] ?? []).map((i) => (
-        <PageImage key={pages[i]!.url} page={pages[i]!} eager onFail={onFail} onLoad={onLoad} ratio={ratios[i]} fit={settings.fit} />
-      ))}
+    <div className="rd-strip" ref={scroller}>
+      <div className="rd-pages">
+        {pages.map((p) => (
+          <PageImage key={p.url} page={p} eager={Math.abs(p.index - startPage) < 3} onFail={onFail} onLoad={onLoad} ratio={ratios[p.index]} />
+        ))}
+      </div>
+      <div className="rd-end-mark" aria-hidden="true" />
+      {endPanel}
     </div>
   );
 
-  const pageLabel = count ? (mode === "double" ? `${(spreads[spreadIdx] ?? []).map((i) => i + 1).join("-")} / ${count}` : `${Math.min(page, count - 1) + 1} / ${count}`) : "";
-
-  const fraction = count ? (reachedEnd ? 1 : (Math.min(page, count - 1) + 1) / count) : 0;
+  const shown = count ? (reachedEnd ? 1 : fraction) : 0;
 
   return (
-    <div className={`reader reader-${mode}`} data-controls={controls || undefined} onClick={onTap} onPointerDown={onPointerDown} onPointerUp={onPointerUp}>
-      <div className="rd-progress" aria-hidden="true">
-        <span style={{ transform: `scaleX(${fraction})` }} />
-      </div>
-      <header className="rd-top" aria-hidden={!controls} inert={!controls || undefined}>
+    <div className="reader">
+      <Celebrations />
+      <header className="rd-top">
         <Link className="icon-btn" to={backTo} replace aria-label="Back to title">
           <ArrowLeft size={20} />
         </Link>
         <div className="rd-titles">
           <span className="rd-series">{title?.title ?? (t.isError ? "Reader" : "Loading…")}</span>
           <span className="rd-chapter">
-            {[chapter ? chapterLabel(chapter) : "", selectedVariant?.group?.name, `via ${prettySource(sourceName)}`, chapter?.language ? languageLabel(selectedVariant?.language ?? chapter.language) : null].filter(Boolean).join(" · ")}
+            {[chapter ? chapterLabel(chapter) : "", `via ${prettySource(sourceName)}`, chapter?.language ? languageLabel(selectedVariant?.language ?? chapter.language) : null, count ? `${Math.min(page, count - 1) + 1} / ${count}` : ""].filter(Boolean).join(" · ")}
           </span>
         </div>
+        {target && (
+          <button className="icon-btn rd-cm-btn" aria-label={`Comments (${comments.length})`} aria-haspopup="dialog" onClick={() => setComments("read")}>
+            <MessageCircle size={20} />
+            {comments.length > 0 && (
+              <span className="rd-cm-count tabular" aria-hidden="true">
+                {comments.length > 99 ? "99+" : comments.length}
+              </span>
+            )}
+          </button>
+        )}
         {list.length > 1 && (
           <button className="icon-btn" aria-label="Chapters" aria-haspopup="dialog" onClick={() => setChList(true)}>
             <ListOrdered size={20} />
@@ -715,11 +718,14 @@ export default function Reader() {
         <button className="icon-btn" aria-label="Reader settings" aria-haspopup="dialog" onClick={() => setPanel(true)}>
           <Settings2 size={20} />
         </button>
+        <div className="rd-progress" role="progressbar" aria-label="Chapter progress" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(shown * 100)}>
+          <span style={{ transform: `scaleX(${shown})` }} />
+        </div>
       </header>
 
       <main className="rd-body">
         {notice && (
-          <div className={`banner rd-banner ${notice.kind === "manual" ? "" : "banner-warn"}`} role="status" aria-live="polite" data-testid="reader-notice" onClick={(e) => e.stopPropagation()}>
+          <div className={`banner rd-banner rd-notice ${notice.kind === "manual" ? "" : "banner-warn"}`} role="status" aria-live="polite" data-testid="reader-notice">
             <span>{notice.text}</span>
             <button className="icon-btn" aria-label="Dismiss" onClick={() => setNotice(null)}>
               <X size={16} />
@@ -737,46 +743,10 @@ export default function Reader() {
         {body}
       </main>
 
-      {count > 0 && (
-        <footer className="rd-bottom" aria-hidden={!controls} inert={!controls || undefined}>
-        <button className="icon-btn" disabled={!(rtl ? next : prev)} onClick={() => goChapter(rtl ? next : prev)} aria-label={rtl ? "Next chapter" : "Previous chapter"}>
-          <ChevronLeft size={20} />
-        </button>
-        {count > 1 ? (
-          <input
-            className="rd-slider"
-            type="range"
-            min={0}
-            max={count - 1}
-            value={Math.min(page, count - 1)}
-            dir={rtl ? "rtl" : "ltr"}
-            aria-label="Page"
-            aria-valuetext={`Page ${page + 1} of ${count}`}
-            onChange={(e) => {
-              const p = Number(e.target.value);
-              setPage(p);
-              setEndView(false);
-              if (mode === "vertical") scroller.current?.querySelector(`[data-index="${p}"]`)?.scrollIntoView({ block: "start" });
-              if (p === count - 1) setReachedEnd(true);
-            }}
-          />
-        ) : (
-          <span style={{ flex: 1 }} />
-        )}
-        {rtl && count > 1 && (
-          <span className="rd-dir" title="Pages run right to left">
-            <ArrowLeft size={13} aria-hidden="true" /> RTL
-          </span>
-        )}
-        <span className="rd-count">{pageLabel}</span>
-        <button className="icon-btn" disabled={!(rtl ? prev : next)} onClick={() => goChapter(rtl ? prev : next)} aria-label={rtl ? "Previous chapter" : "Next chapter"}>
-          <ChevronRight size={20} />
-        </button>
-        </footer>
-      )}
+      <CommentsSheet open={Boolean(commentsOpen)} onClose={() => setComments(false)} target={target} items={comments} compose={commentsOpen === "write"} />
 
       <Sheet open={chList} onClose={() => setChList(false)} title="Chapters">
-        <ol className="rd-chlist" onClick={(e) => e.stopPropagation()}>
+        <ol className="rd-chlist">
           {bookmarks.length > 0 && (
             <li className="rd-bookmarks">
               <p className="rd-bm-head">Bookmarks</p>
@@ -820,58 +790,11 @@ export default function Reader() {
         </ol>
       </Sheet>
       <Sheet open={panel} onClose={() => setPanel(false)} title="Reader settings">
-        <div className="stack" onClick={(e) => e.stopPropagation()}>
-          <div className="settings-row">
-            <span>Layout</span>
-            <div className="segmented" role="radiogroup" aria-label="Layout">
-              {(["auto", "vertical", "single", "double"] as const).map((m) => (
-                <button key={m} role="radio" aria-checked={settings.readerMode === m} onClick={() => updateSettings({ readerMode: m })}>
-                  {m === "auto" ? "Auto" : m === "vertical" ? "Scroll" : m === "single" ? "Single" : "Double"}
-                </button>
-              ))}
-            </div>
-          </div>
-          {mode !== "vertical" && (
-            <>
-              <div className="settings-row">
-                <span>Direction</span>
-                <div className="segmented" role="radiogroup" aria-label="Reading direction">
-                  <button role="radio" aria-checked={settings.direction === "rtl"} onClick={() => updateSettings({ direction: "rtl" })}>
-                    Right to left
-                  </button>
-                  <button role="radio" aria-checked={settings.direction === "ltr"} onClick={() => updateSettings({ direction: "ltr" })}>
-                    Left to right
-                  </button>
-                </div>
-              </div>
-              <div className="settings-row">
-                <span>Fit</span>
-                <div className="segmented" role="radiogroup" aria-label="Page fit">
-                  {(["width", "height", "original"] as const).map((f) => (
-                    <button key={f} role="radio" aria-checked={settings.fit === f} onClick={() => updateSettings({ fit: f })}>
-                      {f === "width" ? "Width" : f === "height" ? "Height" : "Original"}
-                    </button>
-                  ))}
-                </div>
-              </div>
-              <label className="switch settings-row">
-                <span>Tap edges to turn pages</span>
-                <input type="checkbox" checked={settings.tapZones} onChange={(e) => updateSettings({ tapZones: e.target.checked })} />
-              </label>
-            </>
-          )}
-          {mode === "vertical" && (
-            <>
-              <label className="switch settings-row">
-                <span>Gap between pages</span>
-                <input type="checkbox" checked={settings.pageGap} onChange={(e) => updateSettings({ pageGap: e.target.checked })} />
-              </label>
-              <label className="switch settings-row">
-                <span>Continue to next chapter automatically</span>
-                <input type="checkbox" checked={settings.autoNext} onChange={(e) => updateSettings({ autoNext: e.target.checked })} />
-              </label>
-            </>
-          )}
+        <div className="stack">
+          <label className="switch settings-row">
+            <span>Continue to next chapter automatically</span>
+            <input type="checkbox" checked={settings.autoNext} onChange={(e) => updateSettings({ autoNext: e.target.checked })} />
+          </label>
           <label className="switch settings-row">
             <span>
               Data saver
@@ -893,7 +816,9 @@ export default function Reader() {
             <label className="settings-row">
               <span>
                 Chapter version
-                <small className="muted" style={{ display: "block" }}>Same chapter from another source or translation group. Wording and page splits can differ.</small>
+                <small className="muted" style={{ display: "block" }}>
+                  Same chapter from another source or translation group. Wording and page splits can differ.
+                </small>
               </span>
               <select
                 className="input"
@@ -915,12 +840,73 @@ export default function Reader() {
             </label>
           )}
           <p className="muted" style={{ fontSize: "var(--text-xs)" }}>
-            Keys: arrows turn pages, [ and ] change chapter, M toggles controls.
+            Pages scroll top to bottom. Keys: [ and ] change chapter, C opens comments.
           </p>
         </div>
       </Sheet>
     </div>
   );
+}
+
+/** Several events can land at one chapter end (chapter, series, quest): show them as one beat. */
+function mergeMoment(a: Moment | null, b: Moment): Moment {
+  if (!a) return b;
+  return {
+    xp: a.xp + b.xp,
+    levelUp: b.levelUp ?? a.levelUp,
+    tiers: [...a.tiers, ...b.tiers],
+    genres: [...a.genres, ...b.genres],
+    completed: a.completed || b.completed,
+    quests: [...a.quests, ...b.quests],
+    unlocks: [...a.unlocks, ...b.unlocks],
+    after: b.after,
+  };
+}
+
+/** The chapter-end reward beat: XP, level ring and anything newly earned. Static under reduced motion. */
+function RewardBeat({ m }: { m: Moment }) {
+  const lv = m.after.level;
+  const extras = [
+    ...m.quests.map((q) => `Quest done: ${q.title}`),
+    ...m.unlocks.map((u) => `Unlocked ${u.name}`),
+    ...m.tiers.map((t) => `${t.set.name} ${["", "I", "II", "III", "IV", "V"][t.tier]}`),
+    ...(m.genres.length ? [`Passport stamp: ${m.genres.join(", ")}`] : []),
+  ];
+  return (
+    <div className={`rd-beat ${m.completed ? "rd-beat-done" : ""}`} role="status">
+      {m.completed && (
+        <div className="rd-beat-series">
+          <Mascot variant="full" size={120} pose="done" className="rd-beat-mascot" />
+          <p className="rd-beat-big">Series complete</p>
+          <p className="rd-end-note">You read it to the final chapter. It's on your shelf under Completed.</p>
+        </div>
+      )}
+      <div className="rd-beat-row">
+        <ProgressRing value={lv.progress} size={56} stroke={5} label={`Level ${lv.level}, ${lv.into} of ${lv.span} XP`}>
+          <span className="rd-beat-lv">{lv.level}</span>
+        </ProgressRing>
+        <div className="rd-beat-text">
+          <p className="rd-beat-xp">+{m.xp} XP</p>
+          <p className="rd-beat-sub">{m.levelUp ? `Level up · ${lv.tier.name}` : `${lv.span - lv.into} XP to level ${lv.level + 1}`}</p>
+        </div>
+        <Link className="link-btn rd-beat-link" to="/achievements">
+          Awards
+        </Link>
+      </div>
+      {extras.length > 0 && (
+        <ul className="rd-beat-list">
+          {extras.slice(0, 4).map((x) => (
+            <li key={x}>{x}</li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+/** Height of the fixed reader bar, so restored positions land below it. */
+function barHeight(): number {
+  return document.querySelector<HTMLElement>(".rd-top")?.offsetHeight ?? 0;
 }
 
 const POS_KEY = "dawghwa.pos.";
@@ -937,7 +923,12 @@ function writePos(chapterId: string, page: number, offset?: number) {
     localStorage.setItem(POS_KEY + chapterId, JSON.stringify({ page, offset, t: Date.now() }));
     // keep the mirror small: drop all but the 20 most recent chapters
     const keys = Object.keys(localStorage).filter((k) => k.startsWith(POS_KEY));
-    if (keys.length > 20) keys.map((k) => [k, readPos(k.slice(POS_KEY.length))?.t ?? 0] as const).sort((a, b) => a[1] - b[1]).slice(0, keys.length - 20).forEach(([k]) => localStorage.removeItem(k));
+    if (keys.length > 20)
+      keys
+        .map((k) => [k, readPos(k.slice(POS_KEY.length))?.t ?? 0] as const)
+        .sort((a, b) => a[1] - b[1])
+        .slice(0, keys.length - 20)
+        .forEach(([k]) => localStorage.removeItem(k));
   } catch {
     /* storage full or blocked: IndexedDB progress still applies */
   }
@@ -947,13 +938,22 @@ function writePos(chapterId: string, page: number, offset?: number) {
 function measureAnchor(root: HTMLElement): { page: number; offset: number } | null {
   for (const el of root.querySelectorAll<HTMLElement>(".rd-page")) {
     const r = el.getBoundingClientRect();
-    if (r.bottom > 0) return { page: Number(el.dataset.index), offset: r.height ? Math.max(0, -r.top) / r.height : 0 };
+    if (r.bottom > 0)
+      return {
+        page: Number(el.dataset.index),
+        offset: r.height ? Math.max(0, -r.top) / r.height : 0,
+      };
   }
   return null;
 }
 
 /** Source ids ("mangadex") read as names ("MangaDex") when the source list hasn't loaded. */
 function prettySource(name: string): string {
-  const known: Record<string, string> = { mangadex: "MangaDex", anilist: "AniList", comick: "ComicK", mangapill: "MangaPill" };
-  return known[name.toLowerCase()] ?? (name.charAt(0).toUpperCase() + name.slice(1));
+  const known: Record<string, string> = {
+    mangadex: "MangaDex",
+    anilist: "AniList",
+    comick: "ComicK",
+    mangapill: "MangaPill",
+  };
+  return known[name.toLowerCase()] ?? name.charAt(0).toUpperCase() + name.slice(1);
 }

@@ -1,3 +1,5 @@
+import { useSettings } from "@/lib/settings";
+import { useUser } from "@/lib/store/user";
 import type { ReactNode } from "react";
 
 /**
@@ -18,4 +20,15 @@ export function ProgressRing({ value, size = 40, stroke = 4, label, children, to
       {children !== undefined && <span className="ring-inner">{children}</span>}
     </span>
   );
+}
+
+/**
+ * How much of a series this profile has finished: highest chapter read over the latest
+ * known chapter. Undefined when either side is unknown, nothing is read, or Rewards is off.
+ */
+export function useSeriesFraction(titleKey: string, latest?: number): number | undefined {
+  const { rewards } = useSettings();
+  const max = useUser((s) => s.progress.get(titleKey)?.maxReadNumber ?? 0);
+  if (!rewards || !latest || latest <= 0 || max <= 0) return undefined;
+  return Math.min(1, max / latest);
 }

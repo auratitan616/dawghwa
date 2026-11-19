@@ -4,6 +4,7 @@ import { MoreHorizontal, Star } from "lucide-react";
 import { prefetchTitle } from "@/lib/query";
 import { compactNumber, kindLabel, titlePath, type Title, isMature } from "@/lib/titles";
 import { Cover } from "./Cover";
+import { ProgressRing, useSeriesFraction } from "./ProgressRing";
 import { TitleActionsSheet } from "./TitleActions";
 
 export interface CardProps {
@@ -52,6 +53,7 @@ export const TitleCard = memo(function TitleCard({ title: t, reason, rank, conte
   const press = useLongPress(() => setMenu(true));
   const meta = [kindLabel(t.meta?.kind), t.latestChapter ? `Ch. ${t.latestChapter}` : undefined].filter(Boolean);
   const href = titlePath(t);
+  const series = useSeriesFraction(t.key, t.latestChapter);
   if (variant === "ranked")
     return (
       <div className="card">
@@ -84,7 +86,16 @@ export const TitleCard = memo(function TitleCard({ title: t, reason, rank, conte
       </button>
       <Link to={href} className="card-link" onMouseEnter={() => prefetchTitle(t)} onFocus={() => prefetchTitle(t)} {...press}>
         {t.meta?.status === "completed" && <span className="card-badge sticker sticker-lavender">Done</span>}
-        <Cover mature={isMature(t)} src={t.cover} large={t.coverLarge} title={t.title} eager={eager} />
+        {series !== undefined ? (
+          <span className="card-cover">
+            <Cover mature={isMature(t)} src={t.cover} large={t.coverLarge} title={t.title} eager={eager} />
+            <span className="card-ring">
+              <ProgressRing value={series} size={30} stroke={3} label={`${Math.round(series * 100)}% of the series read`} />
+            </span>
+          </span>
+        ) : (
+          <Cover mature={isMature(t)} src={t.cover} large={t.coverLarge} title={t.title} eager={eager} />
+        )}
         {progress && (
           <div className="progress-bar" aria-label={progress.label}>
             <i style={{ width: `${Math.round(progress.fraction * 100)}%` }} />

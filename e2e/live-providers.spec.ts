@@ -87,7 +87,7 @@ test("MangaDex: search, unified list, native reader, real images, progress", asy
   await page.getByRole("dialog").getByRole("link", { name: /MangaDex/ }).first().click();
   await expect(page).toHaveURL(/\/read\/mangadex\/.+s=mangadex/);
   await decodedImages(page);
-  await expect(page.getByText(/via MangaDex/)).toBeVisible();
+  await expect(page.locator(".rd-chapter").getByText(/via MangaDex/)).toBeVisible();
   await page.waitForTimeout(1500);
   const p = (await progress(page)).find((x) => x.chapterId.endsWith("/en/s0/ch:1"));
   expect(p, "progress saved under canonical chapter key").toBeDefined();
@@ -108,7 +108,7 @@ test("Dynasty Reader: search, version picker on the merged title page, native re
   await sheet.getByRole("link", { name: /Dynasty/ }).first().click();
   await expect(page).toHaveURL(/s=dynasty-reader/);
   await decodedImages(page);
-  await expect(page.getByText(/via Dynasty/)).toBeVisible();
+  await expect(page.locator(".rd-chapter").getByText(/via Dynasty/)).toBeVisible();
   await page.waitForTimeout(1500);
   const p = (await progress(page)).find((x) => x.chapterId.endsWith("/en/s0/ch:1"));
   expect(p?.sourceId).toBe("dynasty-reader");
@@ -131,7 +131,7 @@ test("WEBTOON: search, unified list, native reader (long strip), progress", asyn
   }
   await expect(page).toHaveURL(/s=webtoon/);
   await decodedImages(page, 2); // long strip: several pages decode at once
-  await expect(page.getByText(/via WEBTOON/i)).toBeVisible();
+  await expect(page.locator(".rd-chapter").getByText(/via WEBTOON/i)).toBeVisible();
   await page.waitForTimeout(1500);
   const p = (await progress(page)).find((x) => x.sourceId === "webtoon");
   expect(p, "WEBTOON progress saved").toBeDefined();

@@ -33,6 +33,9 @@ Everything is derived; nothing about XP, levels or badges is stored.
 ### Quests and cosmetics
 `src/lib/rewards/quests.ts` builds the weekly quest book (`questBook(profileId, events, titles, now)`) from the same event log as XP. `cosmetics.ts` works out frame and emblem unlocks, and `rhythm.ts` computes the optional weekly reading rhythm. `progressionFor` folds quest XP and the quest count into levels and achievements. Nothing in this layer has its own store.
 
+### Comments (DB v2)
+`src/lib/comments.ts` owns the `comments` store: a per-chapter cache with `useChapterComments`, add/edit/pin/vote/delete, and `threads()` for Top/Newest ordering. Each new comment logs a `comment` event (recommender weight null) that feeds quests and the Margin notes set. The UI is in `src/components/Comments.tsx`. The Reader is scroll-only, with a fixed top bar (comments, chapters, settings, plus a 2px progress line) and a chapter-end panel (reward beat, Next Episode, comments preview, credits).
+
 ## Routing
 
 `/`, `/discover`, `/search`, `/title/:source/:id/:slug?`, `/library`, `/history`, `/profile`, `/about` inside the shell; `/read/:source/:id/:chapterId` and `/welcome` are full screen. Private routes are disallowed in `robots.txt` and marked `noindex`.
