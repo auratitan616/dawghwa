@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import { Link, useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom";
-import { ArrowDownUp, ArrowLeft, BookOpen, Check, ExternalLink, Heart, Info, MoreHorizontal, Plus, Search, Share2, Sparkles, Star, ThumbsDown, ThumbsUp, Users, X } from "lucide-react";
+import { ArrowDownUp, ArrowLeft, BookOpen, Check, ExternalLink, Heart, Info, Layers, MoreHorizontal, Plus, RotateCw, Search, Share2, Sparkles, Star, ThumbsDown, ThumbsUp, Users, X } from "lucide-react";
 import { Cover } from "@/components/Cover";
 import { ChapterNo, Sticker } from "@/components/Editorial";
 import { TitleCard } from "@/components/TitleCard";
@@ -8,7 +8,8 @@ import { Sheet } from "@/components/Layer";
 import { EmptyState, ErrorState } from "@/components/States";
 import { TitleActionsSheet, similarPath } from "@/components/TitleActions";
 import { toast } from "@/components/Toast";
-import { useBrowse, useChapters, useSources, useTitle } from "@/lib/query";
+import { useBrowse, useChapters, useSources, useTitle, type ChapterList as ChapterListData } from "@/lib/query";
+import { chapterBadge, chapterLabel, editionLabel, findChapter, isChapterRead, languageLabel, pickVariant, variantIdOf } from "@/lib/chapters";
 import { useHead } from "@/lib/seo";
 import { markChaptersRead, rate, setStatus, signal, toggleFavorite, useUser } from "@/lib/store/user";
 import type { LibraryStatus } from "@/lib/store/db";
@@ -23,19 +24,82 @@ import type { Chapter } from "@/lib/api/types";
 export const STATUS_LABELS: Record<LibraryStatus, string> = { reading: "Reading", plan: "Plan to read", completed: "Completed", on_hold: "On hold", dropped: "Dropped" };
 const ROW_H = 56;
 
-function ChapterList({ title, chapters, readable, sourceName }: { title: Title; chapters: Chapter[]; readable: boolean; sourceName: string }) {
+function SourceStatusBar({ data, onRetry, retrying }: { data: ChapterListData; onRetry: () => void; retrying: boolean }) {
+  const loading = data.sources.filter((x) => x.status === "loading" || x.status === "linked");
+  const failed = data.sources.filter((x) => x.status === "error" || x.status === "timeout");
+  if (!data.unified || (data.complete && !failed.length)) return null;
+  return (
+    <div className={`banner chapter-status ${failed.length ? "banner-warn" : ""}`} role="status" aria-live="polite">
+      <span>
+        {!data.complete
+          ? `Adding chapters from ${loading.map((x) => x.source).join(", ") || "more sources"}…`
+          : `${failed.map((x) => x.source).join(", ")} didn't respond, so ${failed.length === 1 ? "its" : "their"} chapters are missing from this list.`}
+      </span>
+      {data.complete && failed.length > 0 && (
+        <button className="btn btn-sm" onClick={onRetry} disabled={retrying}>
+          <RotateCw size={14} /> Retry
+        </button>
+      )}
+    </div>
+  );
+}
+
+function VersionSheet({ title, chapter, onClose }: { title: Title; chapter: Chapter | null; onClose: () => void }) {
+  return (
+    <Sheet open={Boolean(chapter)} onClose={onClose} title={chapter ? `${chapterLabel(chapter)} · versions` : "Versions"}>
+      {chapter && (
+        <ul className="version-list">
+          {(chapter.variants ?? []).map((v) => (
+            <li key={variantIdOf(v)}>
+              <Link className="version" to={readerPath(title, chapter.id, undefined, v.sourceId, variantIdOf(v))} onClick={onClose}>
+                <span className="version-main">
+                  <strong>{v.source}</strong>
+                  <span className="muted">{[v.group?.name, editionLabel(v.edition)].filter(Boolean).join(" · ")}</span>
+                </span>
+                <span className="lang-chip" title="Translation language">{languageLabel(v.language ?? chapter.language)}</span>
+              </Link>
+            </li>
+          ))}
+        </ul>
+      )}
+      <p className="muted" style={{ fontSize: "var(--text-xs)" }}>
+        Versions are the same chapter from different sources or translation groups. Wording and page splits can differ.
+      </p>
+    </Sheet>
+  );
+}
+
+function ChapterList({ title, data, readable, sourceName, onRetry, retrying }: { title: Title; data: ChapterListData; readable: boolean; sourceName: string; onRetry: () => void; retrying: boolean }) {
+  const chapters = data.chapters;
   const progress = useUser((s) => s.progress.get(title.key));
   const [desc, setDesc] = useState(true);
   const [find, setFind] = useState("");
+  const [versions, setVersions] = useState<Chapter | null>(null);
+  const languages = useMemo(() => [...new Set(chapters.map((c) => c.language ?? "und"))], [chapters]);
+  const [lang, setLang] = useState<string>("all");
   const ref = useRef<HTMLDivElement>(null);
   const list = useMemo(() => {
     const f = find.trim().toLowerCase();
-    const xs = f ? chapters.filter((c) => String(c.number).startsWith(f) || c.title?.toLowerCase().includes(f) || c.group?.name.toLowerCase().includes(f)) : chapters;
-    return desc ? [...xs].reverse() : xs;
-  }, [chapters, desc, find]);
+    let xs = lang === "all" ? chapters : chapters.filter((c) => (c.language ?? "und") === lang);
+    if (f)
+      xs = xs.filter(
+        (c) =>
+          (c.numberText ?? String(c.number)).startsWith(f) ||
+          c.title?.toLowerCase().includes(f) ||
+          c.display?.toLowerCase().includes(f) ||
+          c.variants?.some((v) => v.group?.name.toLowerCase().includes(f) || v.source.toLowerCase().includes(f)),
+      );
+    const ordered = desc ? [...xs].reverse() : xs;
+    if (!f) return ordered;
+    // "jump to chapter": exact number matches (1, not 10 or 1.5) come first
+    const exact = ordered.filter((c) => (c.numberText ?? "") === f);
+    return exact.length ? [...exact, ...ordered.filter((c) => !exact.includes(c))] : ordered;
+  }, [chapters, desc, find, lang]);
   const { start, end } = useWindowVirtual(ref, list.length, ROW_H);
-  const read = progress?.read ?? {};
-  const readCount = chapters.filter((c) => read[c.id]).length;
+  const read = progress?.read;
+  const readCount = chapters.filter((c) => isChapterRead(read, c)).length;
+  const current = progress ? findChapter(chapters, progress.chapterId)?.chapter : undefined;
+  const providerNames = [...new Set(chapters.flatMap((c) => c.variants?.map((v) => v.source) ?? []))];
   return (
     <section aria-labelledby="chapters-h">
       <div className="section-head">
@@ -43,12 +107,23 @@ function ChapterList({ title, chapters, readable, sourceName }: { title: Title; 
           <h2 id="chapters-h">{chapters.length.toLocaleString()} {chapters.length === 1 ? "chapter" : "chapters"}</h2>
           <p>
             {readCount ? `${readCount} read · ` : ""}
-            {readable ? `Read in Dawghwa · ${new Set(chapters.flatMap((c) => c.variants?.map((v) => v.sourceId) ?? [])).size || 1} sources` : "Not available in the Dawghwa reader"}
+            {readable ? `Read in Dawghwa · ${providerNames.length > 1 ? providerNames.join(" + ") : providerNames[0] ?? sourceName}` : "Not available in the Dawghwa reader"}
           </p>
         </div>
       </div>
+      <SourceStatusBar data={data} onRetry={onRetry} retrying={retrying} />
       <div className="chapter-tools">
         <input className="input" type="search" inputMode="decimal" placeholder="Jump to chapter or search" aria-label="Find chapter" value={find} onChange={(e) => setFind(e.target.value)} />
+        {languages.length > 1 && (
+          <select className="input input-sm" aria-label="Translation language" value={lang} onChange={(e) => setLang(e.target.value)}>
+            <option value="all">All languages</option>
+            {languages.map((l) => (
+              <option key={l} value={l}>
+                {languageLabel(l === "und" ? null : l)}
+              </option>
+            ))}
+          </select>
+        )}
         <button className="btn btn-sm" onClick={() => setDesc((d) => !d)} aria-label={`Sort ${desc ? "oldest first" : "newest first"}`}>
           <ArrowDownUp size={15} /> {desc ? "Newest" : "Oldest"}
         </button>
@@ -59,40 +134,61 @@ function ChapterList({ title, chapters, readable, sourceName }: { title: Title; 
         )}
       </div>
       {!list.length && <p className="muted">No chapter matches "{find}".</p>}
-      <div ref={ref} className="chapter-list" style={{ height: list.length * ROW_H }} role="list">
+      <div ref={ref} className="chapter-list" style={{ height: list.length * ROW_H }} role="list" aria-busy={!data.complete || undefined}>
         {list.slice(start, end).map((c, i) => {
           const idx = start + i;
-          const isRead = Boolean(read[c.id]);
-          const sourceCount = c.variants?.length ?? 0;
-          const sourceLabel = sourceCount > 1 ? `${sourceCount} possible source versions` : c.variants?.[0]?.source ?? sourceName;
-          const meta = [c.group?.name, sourceLabel, c.lastUpdated].filter(Boolean).join(" · ");
-          const isCurrent = progress?.chapterId === c.id;
+          const isRead = isChapterRead(read, c);
+          const vs = c.variants ?? [];
+          const sourcesHere = [...new Set(vs.map((v) => v.source))];
+          const editions = new Set(vs.map((v) => v.edition ?? "unknown"));
+          const meta = [
+            vs.length > 1 ? `${vs.length} versions · ${sourcesHere.join(", ")}` : [vs[0]?.source ?? sourceName, vs[0]?.group?.name].filter(Boolean).join(" · "),
+            editions.has("official") ? "Official" : null,
+            c.volume ? `Vol. ${c.volume}` : null,
+            c.lastUpdated ? c.lastUpdated.slice(0, 10) : null,
+          ]
+            .filter(Boolean)
+            .join(" · ");
+          const isCurrent = current?.id === c.id;
+          const preferred = pickVariant(c, { previous: isCurrent && progress?.sourceId ? { sourceId: progress.sourceId } : null });
+          const label = chapterLabel(c);
           const inner = (
             <>
-              <ChapterNo n={c.number} />
+              <ChapterNo n={c.number} label={c.numberText !== undefined ? chapterBadge(c) : undefined} />
               <span className="ch-body">
                 <span className="ch-title">
-                  {c.title || `Chapter ${c.number}`}
+                  {label}
                   {isCurrent && !isRead && <Sticker tone="accent">Reading</Sticker>}
                 </span>
-                <span className="ch-meta">{meta}</span>
+                <span className="ch-meta">
+                  {data.unified && <span className="lang-chip" aria-label={`Language ${languageLabel(c.language)}`}>{languageLabel(c.language)}</span>}
+                  {meta}
+                </span>
               </span>
             </>
           );
           return (
-            <div key={c.id} className="chapter" role="listitem" style={{ top: idx * ROW_H }} data-read={isRead || undefined} data-current={isCurrent || undefined}>
-              {c.variants?.length ? (
-                <Link to={readerPath(title, c.id, undefined, c.variants[0]?.sourceId)}>{inner}</Link>
+            <div key={c.id} className="chapter" role="listitem" style={{ top: idx * ROW_H }} data-read={isRead || undefined} data-current={isCurrent || undefined} data-chapter-key={c.id}>
+              {preferred ? (
+                <Link to={readerPath(title, c.id, undefined, preferred.sourceId, variantIdOf(preferred))}>{inner}</Link>
               ) : (
                 <span aria-disabled="true">{inner}</span>
               )}
-              <button className="icon-btn" aria-label={isRead ? `Mark chapter ${c.number} unread` : `Mark chapter ${c.number} read`} aria-pressed={isRead} onClick={() => void markChaptersRead(title, [c], !isRead)}>
-                {isRead ? <Check size={18} /> : isCurrent ? <span className="dot" /> : <Check size={18} style={{ opacity: 0.25 }} />}
-              </button>
+              <span className="chapter-actions">
+                {vs.length > 1 && (
+                  <button className="btn btn-sm btn-ghost version-btn" aria-label={`Choose version of ${label}`} aria-haspopup="dialog" onClick={() => setVersions(c)}>
+                    <Layers size={15} /> {vs.length}
+                  </button>
+                )}
+                <button className="icon-btn" aria-label={isRead ? `Mark ${label} unread` : `Mark ${label} read`} aria-pressed={isRead} onClick={() => void markChaptersRead(title, [c], !isRead)}>
+                  {isRead ? <Check size={18} /> : isCurrent ? <span className="dot" /> : <Check size={18} style={{ opacity: 0.25 }} />}
+                </button>
+              </span>
             </div>
           );
         })}
       </div>
+      <VersionSheet title={title} chapter={versions} onClose={() => setVersions(null)} />
     </section>
   );
 }
@@ -263,11 +359,12 @@ export default function TitlePage() {
     );
 
   const chs = chapters.data?.chapters ?? [];
-  const current = progress ? chs.find((c) => c.id === progress.chapterId) : undefined;
-  const nextAfterCurrent = current && progress?.read[current.id] ? chs[chs.indexOf(current) + 1] : current;
+  const current = progress ? findChapter(chs, progress.chapterId)?.chapter : undefined;
+  const nextAfterCurrent = current && isChapterRead(progress?.read, current) ? chs[chs.indexOf(current) + 1] : current;
   const first = chs[0];
   const target = nextAfterCurrent ?? first;
-  const startLabel = progress && target ? (progress.read[target.id] ? `Reread ch. ${target.number}` : `Continue ch. ${target.number}`) : "Start reading";
+  const targetNo = target ? (target.numberText ?? (target.kind && target.kind !== "regular" ? chapterLabel(target) : String(target.number))) : "";
+  const startLabel = progress && target ? (isChapterRead(progress.read, target) ? `Reread ch. ${targetNo}` : `Continue ch. ${targetNo}`) : "Start reading";
   const status = lib?.status;
   const lastNum = chs.length ? chs[chs.length - 1]!.number : title.latestChapter;
   const facts = [
@@ -276,7 +373,7 @@ export default function TitlePage() {
     m?.year ? String(m.year) : undefined,
     m?.demographic && m.demographic !== "none" ? m.demographic[0]!.toUpperCase() + m.demographic.slice(1) : undefined,
   ].filter(Boolean) as string[];
-  const readCount = progress ? chs.filter((c) => progress.read[c.id]).length : 0;
+  const readCount = progress ? chs.filter((c) => isChapterRead(progress.read, c)).length : 0;
   const pubStatus = statusLabel(m?.status);
   const stats = [
     pubStatus ? { label: "Status", value: pubStatus, icon: null } : null,
@@ -306,8 +403,8 @@ export default function TitlePage() {
         <BookOpen size={18} /> Finding readable chapters
       </button>
     ) : target?.variants?.length ? (
-      <Link className="btn btn-primary btn-lg tp-cta" to={readerPath(title, target.id, current === target && progress?.page ? progress.page : undefined, target.variants[0]?.sourceId)}>
-        <BookOpen size={18} /> {progress ? startLabel : `Read chapter ${target.number}`}
+      <Link className="btn btn-primary btn-lg tp-cta" to={readerPath(title, target.id, current === target && progress?.page ? progress.page : undefined, (current === target && progress?.sourceId) || target.variants[0]?.sourceId, current === target ? progress?.variantId : undefined)}>
+        <BookOpen size={18} /> {progress ? startLabel : `Read ${target.kind === "regular" || !target.kind ? `chapter ${targetNo}` : chapterLabel(target)}`}
       </Link>
     ) : (
       <Link className="btn btn-primary btn-lg tp-cta" to={`/search?q=${encodeURIComponent(title.title)}`}>
@@ -317,7 +414,7 @@ export default function TitlePage() {
 
   const chapterPanel = chapters.isError ? (
     <ErrorState error={chapters.error} retry={() => void chapters.refetch()} compact />
-  ) : chapters.isLoading ? (
+  ) : chapters.isLoading || (!chs.length && chapters.data && !chapters.data.complete) ? (
     <div aria-busy="true">
       {Array.from({ length: 8 }, (_, i) => (
         <div key={i} className="skeleton skeleton-line" style={{ height: 40, margin: "8px 0" }} />
@@ -335,7 +432,7 @@ export default function TitlePage() {
       None of the currently compatible providers returned chapters that Dawghwa can read in-app. This does not mean the title has no chapters; source availability can change.
     </EmptyState>
   ) : (
-    <ChapterList title={title} chapters={chs} readable={readable} sourceName={sourceName} />
+    <ChapterList title={title} data={chapters.data!} readable={readable} sourceName={sourceName} onRetry={() => void chapters.refetch()} retrying={chapters.isFetching} />
   );
 
   const about = (

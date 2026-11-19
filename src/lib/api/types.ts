@@ -102,42 +102,108 @@ export interface StreamSummary {
   durationMs: number;
 }
 
+export type Edition = "official" | "scanlation" | "unknown";
+export type ChapterKind = "prologue" | "regular" | "epilogue" | "special" | "oneshot" | "unnumbered";
+
+/** One provider upload of a canonical chapter. */
 export interface ChapterVariant {
+  /** `<sourceId>:<providerChapterId>` */
+  variantId?: string;
   sourceId: string;
   source: string;
   providerChapterId: string;
   url: string;
+  language?: string | null;
+  edition?: Edition;
   group?: { id: string; name: string; url?: string };
+  title?: string;
+  volume?: string;
+  originalNumber?: string | null;
+  publishedAt?: string;
   lastUpdated?: string;
+  pages?: number;
+  /** exact | number | source-only: how the API attached this variant to the row. */
+  match?: "exact" | "number" | "source-only";
 }
 
 export interface Chapter {
+  /** Canonical chapter key for unified lists; provider chapter id for legacy single-source lists. */
   id: string;
+  /** Float value for ordering / legacy displays. */
   number: number;
+  /** Exact chapter number string ("1.10" stays "1.10"); null when unnumbered. */
+  numberText?: string | null;
+  kind?: ChapterKind;
+  /** Human label ("Chapter 10.5", "Prologue", "Bonus Episode 2"). */
+  display?: string;
   title?: string;
   url: string;
   lastUpdated?: string;
+  language?: string | null;
+  volume?: string;
+  season?: number;
+  translations?: number;
   group?: { id: string; name: string; url?: string };
-  /** Provider-specific readable editions grouped under this chapter entry. */
+  /** Provider-specific readable versions of this chapter. */
   variants?: ChapterVariant[];
 }
 
-export interface UnifiedChaptersResponse {
-  title: { ref: string; title: string; altTitles?: string[] };
-  chapters: {
-    key: string;
-    number: number;
-    title?: string;
-    language: string | null;
-    languageVerified: boolean;
-    matchConfidence: "possible" | "source-only";
-    variants: ChapterVariant[];
-  }[];
-  totalChapters: number;
-  sources: { sourceId: string; source: string; status: "ok" | "error" | "unavailable"; chapterCount: number; error?: string }[];
-  skipped: { sourceId: string; source: string; status: string; state: string; reason: string }[];
-  summary: { readerCapableSources: number; matchedReaderSources: number; chapterSourcesSucceeded: number; chapterSourcesFailed: number; truncated: boolean; [key: string]: unknown };
+export interface UnifiedChapterRow {
+  key: string;
+  canonicalTitleId: string;
+  kind: ChapterKind;
+  number: string | null;
+  numberValue: number;
+  season?: number;
+  volume?: string;
+  title?: string;
+  display: string;
+  language: string | null;
+  publishedAt?: string;
+  translations: number;
+  variants: ChapterVariant[];
+  order: number;
 }
+
+export interface UnifiedSourceReport {
+  sourceId: string;
+  source: string;
+  status: "linked" | "loading" | "ok" | "error" | "timeout" | "cancelled" | "no-match" | "review";
+  chapterCount?: number;
+  durationMs?: number;
+  error?: string;
+  errorCode?: string;
+  link?: { providerTitleId: string; url: string; title: string; evidence: { method: string; decision: string; confidence: number; reason: string } };
+}
+
+export interface UnifiedSummary {
+  canonicalTitleId: string;
+  readerProviders: number;
+  linkedSources: number;
+  succeededSources: number;
+  failedSources: number;
+  totalChapters: number;
+  totalVariants: number;
+  mergedRows: number;
+  firstResultMs?: number;
+  durationMs: number;
+}
+
+export interface UnifiedChaptersResponse {
+  title: { id: string; ref: string; title: string };
+  chapters: UnifiedChapterRow[];
+  totalChapters: number;
+  languages: string[];
+  sources: UnifiedSourceReport[];
+  summary: UnifiedSummary;
+}
+
+export type UnifiedStreamEvent =
+  | { event: "identity"; title: { id: string; ref: string; title: string } }
+  | { event: "source"; report: UnifiedSourceReport }
+  | { event: "chapters"; chapters: UnifiedChapterRow[]; complete: boolean; sourcesDone: number; sourcesTotal: number }
+  | { event: "summary"; summary: UnifiedSummary }
+  | { event: "error"; error: string };
 
 export interface ChaptersResponse {
   chapters: Chapter[];

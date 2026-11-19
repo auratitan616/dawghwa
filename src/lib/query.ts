@@ -1,8 +1,9 @@
 import { QueryClient, useInfiniteQuery, useQuery, keepPreviousData } from "@tanstack/react-query";
 import { createAsyncStoragePersister } from "@tanstack/query-async-storage-persister";
-import { api } from "./api/endpoints";
+import { api, streamUnifiedChapters } from "./api/endpoints";
 import { isApiError } from "./api/errors";
-import type { BrowseQuery, Chapter } from "./api/types";
+import type { BrowseQuery, Chapter, UnifiedSourceReport, UnifiedSummary } from "./api/types";
+import { toChapter } from "./chapters";
 import { cacheTitles, kvGet, kvSet, db } from "./store/db";
 import { fromResult, isIdAddressable, mergeTitle, titleKey, type Title } from "./titles";
 
@@ -130,32 +131,45 @@ export function useTitle(sourceId: string, id: string, url?: string) {
 export interface ChapterList {
   chapters: Chapter[];
   total: number;
+  /** True when the list comes from the unified multi-provider endpoint. */
+  unified: boolean;
+  /** False while slower providers are still loading (progressive stream). */
+  complete: boolean;
+  sources: UnifiedSourceReport[];
+  summary?: UnifiedSummary;
 }
 
-/** Full chapter list (the API caches it server-side and returns it in one response). */
+/**
+ * Chapter list for a title. ID-addressable titles (MangaDex/AniList/MangaUpdates
+ * refs) use the unified multi-provider stream: the first provider's chapters
+ * render immediately, later providers merge in as they finish. Other titles,
+ * and API deployments without the unified route, use the single-source list.
+ */
 export function useChapters(t: Pick<Title, "key" | "url" | "sourceId" | "id"> | undefined) {
+  const queryKey = ["chapters", t?.key, "unified-v2"];
   return useQuery({
-    queryKey: ["chapters", t?.key, "unified-v1"],
-    enabled: Boolean(t?.url),
+    queryKey,
+    enabled: Boolean(t?.url || (t && isIdAddressable(t.sourceId))),
     queryFn: async ({ signal }): Promise<ChapterList> => {
       if (t && isIdAddressable(t.sourceId)) {
+        const sources = new Map<string, UnifiedSourceReport>();
+        let latest: ChapterList | undefined;
+        let summary: UnifiedSummary | undefined;
         try {
-          const response = await api.unifiedChapters({ source: t.sourceId, id: t.id, limit: 64 }, { signal });
-          const chapters: Chapter[] = response.chapters.map((item) => {
-            const primary = item.variants[0];
-            return {
-              // Prefer the title's original provider chapter id when present so
-              // existing reading-progress keys survive the aggregation rollout.
-              id: item.variants.find((variant) => variant.sourceId === t.sourceId)?.providerChapterId ?? item.key,
-              number: item.number,
-              title: item.title,
-              url: primary?.url ?? "",
-              lastUpdated: primary?.lastUpdated,
-              group: primary?.group,
-              variants: item.variants,
-            };
+          await streamUnifiedChapters(`${t.sourceId}:${t.id}`, {
+            signal,
+            onEvent: (e) => {
+              if (e.event === "source") sources.set(e.report.sourceId, { ...sources.get(e.report.sourceId), ...e.report });
+              else if (e.event === "summary") summary = e.summary;
+              else if (e.event === "chapters") {
+                latest = { chapters: e.chapters.map(toChapter), total: e.chapters.length, unified: true, complete: e.complete, sources: [...sources.values()] };
+                // progressive render: publish partial snapshots while the stream continues
+                if (!e.complete) queryClient.setQueryData<ChapterList>(queryKey, latest);
+              } else if (e.event === "error") throw new Error(e.error);
+            },
           });
-          return { chapters, total: response.totalChapters };
+          if (latest) return { ...latest, complete: true, sources: [...sources.values()], summary };
+          return { chapters: [], total: 0, unified: true, complete: true, sources: [...sources.values()], summary };
         } catch (error) {
           // Keep the deployed app usable while the matching API deployment rolls out.
           if (!isApiError(error) || error.status !== 404) throw error;
@@ -165,9 +179,12 @@ export function useChapters(t: Pick<Title, "key" | "url" | "sourceId" | "id"> | 
       return {
         chapters: r.chapters.map((chapter) => ({
           ...chapter,
-          variants: [{ sourceId: r.sourceId, source: r.source, providerChapterId: chapter.id, url: chapter.url, group: chapter.group, lastUpdated: chapter.lastUpdated }],
+          variants: [{ variantId: `${r.sourceId}:${chapter.id}`, sourceId: r.sourceId, source: r.source, providerChapterId: chapter.id, url: chapter.url, group: chapter.group, lastUpdated: chapter.lastUpdated }],
         })),
         total: r.totalChapters,
+        unified: false,
+        complete: true,
+        sources: [],
       };
     },
     staleTime: 10 * 60_000,

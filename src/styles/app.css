@@ -3614,3 +3614,79 @@ fieldset legend { padding: 0; margin-bottom: var(--space-2); }
   .chips.understood::-webkit-scrollbar { display: none; }
   .chips.understood > * { flex: none; }
 }
+
+/* unified chapter list */
+.chapter-status {
+  margin: 0 0 var(--space-3);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+}
+.chapter-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+.version-btn {
+  min-height: 32px;
+  padding: 0 8px;
+  gap: 4px;
+  color: var(--ink-2);
+  font-variant-numeric: tabular-nums;
+}
+.lang-chip {
+  display: inline-block;
+  margin-right: 6px;
+  padding: 0 5px;
+  border: 1px solid var(--line-strong);
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  line-height: 15px;
+  color: var(--ink-2);
+  vertical-align: 1px;
+}
+.input-sm {
+  flex: 0 0 auto;
+  min-height: 38px;
+  width: auto;
+}
+.version-list {
+  list-style: none;
+  margin: 0 0 var(--space-3);
+  padding: 0;
+  display: grid;
+  gap: var(--space-2);
+}
+.version {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--surface-2);
+}
+.version:hover {
+  border-color: var(--accent);
+}
+.version-main {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1;
+  font-size: var(--text-sm);
+}
+.version-main .muted {
+  font-size: var(--text-xs);
+}
+
+/* reader: fallback / position notices, edition choice, bookmarks */
+.rd-banner{position:sticky;top:calc(var(--rd-top,56px) + 8px);z-index:5;display:flex;gap:.5rem;align-items:flex-start;justify-content:space-between;margin:.5rem auto;max-width:42rem;font-size:.875rem;line-height:1.4}
+.rd-banner > span{flex:1;padding-top:.35rem}
+.rd-choice{max-width:32rem;margin-inline:auto;text-align:center;gap:.75rem}
+.rd-choice .stack{display:flex;flex-direction:column;gap:.5rem;width:100%}
+.rd-bookmarks{border-bottom:1px solid var(--line,rgba(255,255,255,.08));padding-bottom:.5rem;margin-bottom:.5rem}
+.rd-bm-head{font-size:.75rem;text-transform:uppercase;letter-spacing:.08em;opacity:.6;margin:.25rem .75rem}
+.rd-bm{display:flex;align-items:center;gap:.25rem}
+.rd-bm .rd-ch{flex:1}

@@ -40,7 +40,12 @@ export interface LibraryRecord {
 export interface ProgressRecord {
   profileId: string;
   titleKey: string;
+  /** Canonical chapter key (unified lists) or a provider chapter id (older records / single-source titles). */
   chapterId: string;
+  /** The provider version being read (`<sourceId>:<providerChapterId>`), so resume reopens the same source. */
+  variantId?: string;
+  sourceId?: string;
+  language?: string | null;
   chapterNumber: number;
   chapterTitle?: string;
   /** Page index within the chapter (0-based) and page count. */
