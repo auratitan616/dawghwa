@@ -98,7 +98,15 @@ offline-friendly progress mirror, and a fullscreen toggle in reader settings
     chapter, in English, shows the notice and sends a report.
 
 ```bash
-# API: (in dawghwa.api) PORT=3100 npx next dev -p 3100
+# API: (in dawghwa.api). The API allows 12 expensive requests per client per
+# minute; the full two-project suite needs more, so raise it locally.
+RATE_LIMIT_EXPENSIVE_PER_MINUTE=120 PORT=3100 npx next dev -p 3100
 npm run build
-E2E_LIVE=1 npx playwright test e2e/live-providers.spec.ts
+npm run e2e:live          # live provider checks only
+E2E_LIVE=1 npm run e2e    # whole suite
 ```
+
+Last run (2026-11-19, local API, Chromium): full suite 33 passed, 1 skipped
+(a phone-only layout check on the desktop project); the live file passes 5/5
+on both mobile and desktop. Reader startup to first decoded image, measured in
+the browser: MangaDex 1.5 s, Dynasty Reader 1.5 s, WEBTOON 1.8 s.

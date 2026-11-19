@@ -320,7 +320,8 @@ export default function TitlePage() {
     return sc.score > 0.55 ? explain(sc, ctx, pos)?.text : undefined;
   }, [title, ctx, loc.state]);
   useEffect(() => {
-    if (title && chapters.data && !chapters.data.chapters.length) markUnreadable(title.key);
+    // only a finished aggregation with no chapters means unreadable (partial stream events start empty)
+    if (title && chapters.data && chapters.data.complete !== false && !chapters.data.chapters.length) markUnreadable(title.key);
   }, [title, chapters.data]);
 
   const bareBar = (
