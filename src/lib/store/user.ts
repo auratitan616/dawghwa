@@ -21,7 +21,9 @@ export type SignalKind =
   | "not_interested"
   | "hide"
   | "dropped"
-  | "unhide";
+  | "unhide"
+  | "surprise_pick"
+  | "comment";
 
 export interface UserState {
   ready: boolean;

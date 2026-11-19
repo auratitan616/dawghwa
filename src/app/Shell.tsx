@@ -19,7 +19,7 @@ import {
   RefreshCw,
 } from "lucide-react";
 import { Brand } from "@/components/Brand";
-import { Avatar } from "@/components/Avatar";
+import { ProfileAvatar } from "@/components/ProfileAvatar";
 import { Toasts } from "@/components/Toast";
 import { Celebrations } from "@/components/Celebrate";
 import { useSettings } from "@/lib/settings";
@@ -127,7 +127,7 @@ export function Shell() {
               className="side-link"
               style={{ minHeight: 52 }}
             >
-              <Avatar name={profile.name} color={profile.color} size={30} />
+              <ProfileAvatar profile={profile} size={34} />
               <span>
                 {profile.name}
                 <span

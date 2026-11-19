@@ -30,6 +30,9 @@ Everything is derived; nothing about XP, levels or badges is stored.
 - `UserState.events` holds the event log in memory, so progression is synchronous. Export includes the titles of every finished series, so genre stamps survive a round trip.
 - `settings.rewards` (Profile > Rewards) hides every surface. Turning it off deletes nothing.
 
+### Quests and cosmetics
+`src/lib/rewards/quests.ts` builds the weekly quest book (`questBook(profileId, events, titles, now)`) from the same event log as XP. `cosmetics.ts` works out frame and emblem unlocks, and `rhythm.ts` computes the optional weekly reading rhythm. `progressionFor` folds quest XP and the quest count into levels and achievements. Nothing in this layer has its own store.
+
 ## Routing
 
 `/`, `/discover`, `/search`, `/title/:source/:id/:slug?`, `/library`, `/history`, `/profile`, `/about` inside the shell; `/read/:source/:id/:chapterId` and `/welcome` are full screen. Private routes are disallowed in `robots.txt` and marked `noindex`.

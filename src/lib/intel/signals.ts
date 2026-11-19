@@ -23,6 +23,9 @@ export const SIGNAL_WEIGHTS: Record<SignalKind, { y: 0 | 1; w: number } | null> 
   hide: { y: 0, w: 0.8 },
   dropped: { y: 0, w: 0.6 },
   unhide: null,
+  // Reward bookkeeping only (quests); never trained on.
+  surprise_pick: null,
+  comment: null,
 };
 
 export const SHORT_HALF_LIFE_DAYS = 14;

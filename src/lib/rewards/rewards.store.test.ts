@@ -5,6 +5,8 @@ import { exportProfile, importProfile } from "../store/transfer";
 import { XP, progressionFor } from "./index";
 
 const t = { ...catalog[0]!, meta: { ...catalog[0]!.meta, status: "completed" as const, genres: ["Action"] } };
+// Weekly quests depend on the (random) profile id; compare reading XP only.
+const reading = (l: { entries: { reason: string; xp: number }[] }) => l.entries.filter((e) => e.reason !== "quest").reduce((n, e) => n + e.xp, 0);
 const u = (n: number, finished = true) => ({ title: t, chapterId: `c${n}`, chapterNumber: n, page: 9, pageCount: 10, fraction: 1, finished, lastChapterNumber: 2 });
 
 // The test setup gives every test a fresh database, so each test builds its own history.
@@ -20,27 +22,27 @@ describe("rewards from the real store", () => {
     await markChaptersRead(t, [{ id: "c1", number: 1 }], true);
     await setStatus(t, "completed");
     await setStatus(t, "reading");
-    expect(progressionFor(getUser()).ledger.total).toBe(0);
+    expect(progressionFor(getUser()).ledger.total).toBe(0); // no quest can complete without a finished chapter
   });
 
   it("finishing chapters earns XP once, and reading to the end completes the series", async () => {
     await saveProgress(u(1));
     await saveProgress(u(1));
     const one = progressionFor(getUser()).ledger;
-    expect(one.total).toBe(XP.chapter + XP.series + XP.genre);
+    expect(reading(one)).toBe(XP.chapter + XP.series + XP.genre);
     await saveProgress(u(2));
     const two = progressionFor(getUser()).ledger;
     expect(two.completed).toBe(1);
-    expect(two.total).toBe(one.total + XP.chapter + XP.complete);
+    expect(reading(two)).toBe(reading(one) + XP.chapter + XP.complete);
   });
 
   it("un-marking and re-reading a chapter does not farm XP", async () => {
     await saveProgress(u(1));
     await saveProgress(u(2));
-    const before = progressionFor(getUser()).ledger.total;
+    const before = progressionFor(getUser()).ledger;
     await markChaptersRead(t, [{ id: "c2", number: 2 }], false);
     await saveProgress(u(2));
-    expect(progressionFor(getUser()).ledger.total).toBe(before);
+    expect(progressionFor(getUser()).ledger.total).toBe(before.total);
   });
 
   it("survives export and import with identical progression", async () => {
