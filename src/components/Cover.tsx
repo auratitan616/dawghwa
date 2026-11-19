@@ -1,12 +1,15 @@
 import { useState } from "react";
 import { useSettings } from "@/lib/settings";
+import { coverSrc } from "@/lib/api/images";
 
 /**
  * Cover image in a fixed 5:7 frame (no layout shift), lazy loaded, with a
  * typographic fallback when the provider has no cover or it fails to load.
  * `large` (when the API provides it) is offered via srcset for big slots.
  */
-export function Cover({ src, large, title, eager, sizes = "160px", className = "", mature }: { src?: string; large?: string; title: string; eager?: boolean; sizes?: string; className?: string; mature?: boolean }) {
+export function Cover({ src: rawSrc, large: rawLarge, title, eager, sizes = "160px", className = "", mature }: { src?: string; large?: string; title: string; eager?: boolean; sizes?: string; className?: string; mature?: boolean }) {
+  const src = coverSrc(rawSrc);
+  const large = coverSrc(rawLarge);
   const blur = useSettings().matureCovers === "blur" && mature;
   const [failed, setFailed] = useState<string | undefined>();
   const [loaded, setLoaded] = useState<string | undefined>();

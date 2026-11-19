@@ -20,6 +20,8 @@ import { clearCatalogFiltersFailure } from "@/lib/api/catalog";
 import { useHead } from "@/lib/seo";
 import { continueList, useUser } from "@/lib/store/user";
 import { MascotSays } from "@/components/Mascot";
+import { Brand } from "@/components/Brand";
+import { Avatar } from "@/components/Avatar";
 import { readerPath, titlePath, type Title, isMature, isKnownUnreadable } from "@/lib/titles";
 
 const MIN_ROW = 6;
@@ -361,6 +363,15 @@ export default function Home() {
   return (
     <div className="page home">
       <h1 className="sr-only">Dawghwa home</h1>
+      {/* The shell has no top bar (D6): on phones and tablets Home carries the brand, and it scrolls away. */}
+      <div className="home-bar">
+        <Brand />
+        {profile && (
+          <Link to="/profile" className="home-bar-avatar" aria-label={`Profile: ${profile.name}`}>
+            <Avatar name={profile.name} color={profile.color} size={32} />
+          </Link>
+        )}
+      </div>
       <Featured ctx={ctx} claims={claims} />
       <nav className="mood-strip" aria-label="Quick picks">
         <button className="mood mood-lime" onClick={doSurprise}>

@@ -5,6 +5,7 @@ import { toast } from "@/components/Toast";
 import { useChapters } from "@/lib/query";
 import { setStatus, useUser } from "@/lib/store/user";
 import { kindLabel, markUnreadable, plainText, readerPath, statusLabel, titlePath, type Title } from "@/lib/titles";
+import { coverSrc } from "@/lib/api/images";
 
 /**
  * Blueprint home hero: one large artwork card per featured series, title and
@@ -87,7 +88,7 @@ function HeroSlide({ t, i, n, active }: { t: Title; i: number; n: number; active
       : { to: titlePath(t), label: chapters.data ? "View series" : "Start reading" };
   const genres = (t.meta?.genres ?? []).slice(0, 3);
   const facts = [kindLabel(t.meta?.kind), statusLabel(t.meta?.status)].filter(Boolean).join(" · ");
-  const art = t.coverLarge ?? t.cover;
+  const art = coverSrc(t.coverLarge ?? t.cover);
   return (
     <article className="hero-slide" data-i={i} aria-roledescription="slide" aria-label={`${i + 1} of ${n}: ${t.title}`} aria-hidden={!active || undefined} inert={!active || undefined}>
       <Link to={titlePath(t)} className="hero-art" tabIndex={-1} aria-hidden="true">

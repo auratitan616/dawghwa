@@ -3,7 +3,7 @@ import { Link, useSearchParams } from "react-router-dom";
 import { History, LayoutGrid, List, Search as SearchIcon, X } from "lucide-react";
 import { TitleGrid } from "@/components/Grid";
 import { Cover } from "@/components/Cover";
-import { EmptyState } from "@/components/States";
+import { EmptyState, ListSkeleton } from "@/components/States";
 import { Sticker } from "@/components/Editorial";
 import { useHead } from "@/lib/seo";
 import { allCollections, useUser } from "@/lib/store/user";
@@ -63,6 +63,7 @@ function LibraryRow({ t, r, p }: { t: Title; r?: LibraryRecord; p?: ProgressReco
 export default function Library() {
   const [params, setParams] = useSearchParams();
   const library = useUser((s) => s.library);
+  const ready = useUser((s) => s.ready);
   const titles = useUser((s) => s.titles);
   const progress = useUser((s) => s.progress);
   const state = useUser((s) => s);
@@ -183,7 +184,9 @@ export default function Library() {
           </select>
         </div>
       )}
-      {rows.length ? (
+      {!ready ? (
+        <ListSkeleton />
+      ) : rows.length ? (
         view === "grid" ? (
           <TitleGrid items={rows.map((x) => x.t)} context="library" />
         ) : (

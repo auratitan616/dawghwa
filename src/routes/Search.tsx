@@ -3,7 +3,7 @@ import { useOnline } from "@/lib/platform/useOnline";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { Clock, Globe, Search as SearchIcon, SlidersHorizontal, X } from "lucide-react";
+import { Clock, Compass, Globe, Search as SearchIcon, SlidersHorizontal, X } from "lucide-react";
 import { Sheet } from "@/components/Layer";
 import type { BrowseOrder, BrowseQuery, MangaKind } from "@/lib/api/types";
 import { TitleCard } from "@/components/TitleCard";
@@ -20,6 +20,7 @@ import { getCachedTitles } from "@/lib/store/db";
 import { useUser } from "@/lib/store/user";
 import { useRankContext } from "@/lib/feed/context";
 import { fromResult, titlePath, type Title, isMature } from "@/lib/titles";
+import { coverSrc } from "@/lib/api/images";
 
 const KINDS: [MangaKind, string][] = [
   ["manhwa", "Manhwa"],
@@ -187,7 +188,7 @@ function CategoryTile({ label, to, q }: { label: string; to: string; q: BrowseQu
       <Link className="cat-tile" to={to}>
         <span className="cat-tile-label">{label}</span>
         <span className="cat-tile-art" aria-hidden="true">
-          {t?.cover ? <img src={t.cover} alt="" loading="lazy" decoding="async" referrerPolicy="no-referrer" /> : <span className="skeleton" />}
+          {t?.cover ? <img src={coverSrc(t.cover)} alt="" loading="lazy" decoding="async" referrerPolicy="no-referrer" /> : <span className="skeleton" />}
         </span>
       </Link>
     </li>
@@ -354,7 +355,12 @@ export default function Search() {
 
   return (
     <div className="page search-page">
-      <h1 className="search-title">Search</h1>
+      <div className="search-head">
+        <h1 className="search-title">Search</h1>
+        <Link className="btn btn-sm search-discover" to="/discover">
+          <Compass size={16} aria-hidden="true" /> Discover
+        </Link>
+      </div>
       <div className="search-box">
         <form
           className="search-input"
