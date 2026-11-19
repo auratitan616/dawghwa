@@ -42,6 +42,15 @@ function hash(s: string) {
   for (let i = 0; i < s.length; i++) h = Math.imul(h ^ s.charCodeAt(i), 16777619);
   return h >>> 0;
 }
+/**
+ * Weekly quest seed for a profile. Derived from the profile id (not the id
+ * itself, so exports don't carry it) and kept on import, so an imported
+ * profile gets the same quests and the same progression.
+ */
+export function questSeedOf(p: { id: string; questSeed?: string } | null | undefined): string {
+  if (!p) return "";
+  return p.questSeed ?? `q${hash(p.id).toString(36)}`;
+}
 export function rng(seed: string) {
   let a = hash(seed);
   return () => {

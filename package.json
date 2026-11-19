@@ -1,7 +1,7 @@
 {
   "name": "dawghwa",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.2.0",
   "type": "module",
   "description": "Dawghwa: personalised manga, manhwa, manhua and webtoon discovery and reading app (PWA + Android)",
   "license": "MIT",
@@ -14,6 +14,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "e2e": "playwright test",
+    "e2e:live": "E2E_LIVE=1 playwright test e2e/live-providers.spec.ts",
     "e2e:install": "playwright install chromium",
     "eval:intel": "vitest run src/lib/intel",
     "android:sync": "node scripts/check-native-env.mjs && npm run build && cap sync android",

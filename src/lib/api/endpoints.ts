@@ -5,6 +5,8 @@ import type {
   ApiIndex,
   BrowseQuery,
   ChaptersResponse,
+  UnifiedChaptersResponse,
+  UnifiedStreamEvent,
   HealthEntry,
   MangaResponse,
   PagesResponse,
@@ -34,10 +36,26 @@ export const api = {
     o: Opt = {},
   ) => request<ChaptersResponse>("/api/chapters", { body: b, signal: o.signal, timeoutMs: 40_000 }),
 
+  /** Unified, reader-capable chapters across matching providers for a metadata title. */
+  unifiedChapters: (
+    b: { source: string; id: string; limit?: number; refresh?: boolean },
+    o: Opt = {},
+  ) => {
+    const ref = encodeURIComponent(`${b.source}:${b.id}`);
+    const params = new URLSearchParams();
+    if (b.limit) params.set("limit", String(b.limit));
+    if (b.refresh) params.set("refresh", "1");
+    return request<UnifiedChaptersResponse>(`/api/titles/${ref}/chapters/all?${params.toString()}`, {
+      signal: o.signal,
+      timeoutMs: 60_000,
+      retries: 0,
+    });
+  },
+
   manga: (b: { url: string; source?: string }, o: Opt = {}) =>
     request<MangaResponse>("/api/manga", { body: b, signal: o.signal, timeoutMs: 20_000 }),
 
-  pages: (b: { source: string; chapterId: string; dataSaver?: boolean } | { url: string; dataSaver?: boolean }, o: Opt = {}) =>
+  pages: (b: { source: string; chapterId: string; url?: string; dataSaver?: boolean; refresh?: boolean } | { url: string; source?: string; chapterId?: string; dataSaver?: boolean; refresh?: boolean }, o: Opt = {}) =>
     // page URLs expire (MangaDex@Home) so the request is never de-duplicated across screens for long
     request<PagesResponse>("/api/pages", { body: b, signal: o.signal, timeoutMs: 20_000 }),
 
@@ -49,6 +67,10 @@ export const api = {
 
   /** Full title metadata from GET /api/titles/mangadex:{id}. */
   title: (id: string, o: Opt = {}) => catalogTitle(id, o),
+
+  /** Tell the API a chapter version failed in the reader (and whether fallback worked). Best effort. */
+  report: (b: { sourceId: string; kind: "pages" | "image" | "empty"; chapterKey?: string; providerChapterId?: string; errorCode?: string; fallback?: { attempted: boolean; succeeded: boolean; toSourceId?: string } }) =>
+    request<{ accepted: boolean }>("/api/reports", { body: b, timeoutMs: 8000, retries: 0 }).catch(() => undefined),
 
   health: (o: Opt = {}) =>
     request<{ sources: Record<string, HealthEntry>; summary?: Record<string, number>; stale?: boolean }>("/api/health", {
@@ -96,4 +118,51 @@ export async function streamSearch(query: string, opts: StreamSearchOptions): Pr
     throw toApiError(e);
   }
   return summary;
+}
+
+export interface UnifiedStreamOptions {
+  refresh?: boolean;
+  signal?: AbortSignal;
+  onEvent: (e: UnifiedStreamEvent) => void;
+  timeoutMs?: number;
+}
+
+/**
+ * Progressive unified chapter list (NDJSON). `chapters` events carry a full
+ * merged snapshot after each provider finishes, so the UI can render the first
+ * provider's chapters while slower ones load. Throws ApiError on HTTP errors.
+ */
+export async function streamUnifiedChapters(ref: string, opts: UnifiedStreamOptions): Promise<void> {
+  const params = new URLSearchParams({ stream: "1" });
+  if (opts.refresh) params.set("refresh", "1");
+  let res: Response;
+  try {
+    res = await fetchOnce(
+      apiUrl(`/api/titles/${encodeURIComponent(ref)}/chapters/all?${params.toString()}`),
+      { headers: { Accept: "application/x-ndjson" } },
+      opts.timeoutMs ?? 60_000,
+      opts.signal,
+    );
+  } catch (e) {
+    throw toApiError(e);
+  }
+  if (!res.ok) {
+    let message = `HTTP ${res.status}`;
+    try {
+      message = ((await res.json()) as { error?: string }).error ?? message;
+    } catch {
+      /* not json */
+    }
+    throw new ApiError({ kind: "http", status: res.status, message });
+  }
+  if (!res.body) throw new ApiError({ kind: "parse", message: "Streaming not supported" });
+  try {
+    for await (const line of parseNdjson<UnifiedStreamEvent>(res.body)) {
+      if (opts.signal?.aborted) break;
+      if (line && typeof line === "object" && "event" in line) opts.onEvent(line);
+    }
+  } catch (e) {
+    if (opts.signal?.aborted) throw new ApiError({ kind: "aborted", message: "Aborted" });
+    throw toApiError(e);
+  }
 }

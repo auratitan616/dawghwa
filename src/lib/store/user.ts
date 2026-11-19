@@ -1,3 +1,4 @@
+import { chapterAliases } from "@/lib/chapters";
 import { useSyncExternalStore } from "react";
 import type { Title } from "../titles";
 import { cacheTitles, db, getCachedTitles, kvGet, kvSet, type EventRecord, type Hidden, type LibraryRecord, type LibraryStatus, type ProfileRecord, type ProgressRecord } from "./db";
@@ -287,6 +288,10 @@ export async function unhideTitle(key: string) {
 export interface ProgressUpdate {
   title: Title;
   chapterId: string;
+  /** Provider version being read; lets resume reopen the same source. */
+  variantId?: string;
+  sourceId?: string;
+  language?: string | null;
   chapterNumber: number;
   chapterTitle?: string;
   page: number;
@@ -318,6 +323,9 @@ export async function saveProgress(u: ProgressUpdate): Promise<ProgressRecord | 
     profileId: profile.id,
     titleKey: u.title.key,
     chapterId: u.chapterId,
+    ...(u.variantId ? { variantId: u.variantId } : {}),
+    ...(u.sourceId ? { sourceId: u.sourceId } : {}),
+    ...(u.language !== undefined ? { language: u.language } : {}),
     chapterNumber: u.chapterNumber,
     chapterTitle: u.chapterTitle,
     page: Math.max(0, u.page),
@@ -345,7 +353,7 @@ export async function saveProgress(u: ProgressUpdate): Promise<ProgressRecord | 
   return rec;
 }
 
-export async function markChaptersRead(t: Title, chapters: { id: string; number: number }[], read: boolean) {
+export async function markChaptersRead(t: Title, chapters: { id: string; number: number; variants?: { providerChapterId: string; variantId?: string }[] }[], read: boolean) {
   const profile = state.profile;
   if (!profile || !chapters.length) return;
   const prev = state.progress.get(t.key);
@@ -353,7 +361,7 @@ export async function markChaptersRead(t: Title, chapters: { id: string; number:
   const map = { ...(prev?.read ?? {}) };
   for (const c of chapters) {
     if (read) map[c.id] = map[c.id] ?? now;
-    else delete map[c.id];
+    else for (const alias of chapterAliases(c)) delete map[alias]; // legacy provider-id marks too
   }
   const latest = [...chapters].sort((a, b) => b.number - a.number)[0]!;
   const rec: ProgressRecord = prev

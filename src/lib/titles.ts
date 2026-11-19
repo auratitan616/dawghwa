@@ -71,8 +71,13 @@ export function titlePath(t: Pick<Title, "sourceId" | "id" | "title" | "url">): 
   return isIdAddressable(t.sourceId) ? base : `${base}?u=${encodeURIComponent(t.url)}`;
 }
 
-export function readerPath(t: Pick<Title, "sourceId" | "id">, chapterId: string, page?: number): string {
-  return `/read/${encodeURIComponent(t.sourceId)}/${encodeURIComponent(t.id)}/${encodeURIComponent(chapterId)}${page ? `?p=${page}` : ""}`;
+export function readerPath(t: Pick<Title, "sourceId" | "id">, chapterId: string, page?: number, sourceId?: string, variantId?: string): string {
+  const params = new URLSearchParams();
+  if (page) params.set("p", String(page));
+  if (sourceId) params.set("s", sourceId);
+  if (variantId) params.set("v", variantId);
+  const query = params.toString();
+  return `/read/${encodeURIComponent(t.sourceId)}/${encodeURIComponent(t.id)}/${encodeURIComponent(chapterId)}${query ? `?${query}` : ""}`;
 }
 
 export function kindLabel(k?: MangaKind): string | undefined {

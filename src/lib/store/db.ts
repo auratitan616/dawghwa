@@ -32,7 +32,7 @@ export interface ProfileRecord {
    * shared devices, not security; the data itself is not encrypted.
    */
   pin?: { salt: string; hash: string };
-  /** Seed for weekly quests. Missing = the profile id. Import keeps the original, so quests survive a move (D34). */
+  /** Seed for weekly quests. Missing = derived from the profile id (questSeedOf). Import keeps the original, so quests survive a move (D34). */
   questSeed?: string;
 }
 
@@ -51,7 +51,12 @@ export interface LibraryRecord {
 export interface ProgressRecord {
   profileId: string;
   titleKey: string;
+  /** Canonical chapter key (unified lists) or a provider chapter id (older records / single-source titles). */
   chapterId: string;
+  /** The provider version being read (`<sourceId>:<providerChapterId>`), so resume reopens the same source. */
+  variantId?: string;
+  sourceId?: string;
+  language?: string | null;
   chapterNumber: number;
   chapterTitle?: string;
   /** Page index within the chapter (0-based) and page count. */
