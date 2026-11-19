@@ -20,8 +20,13 @@ export interface Settings {
   dataSaver: boolean;
   pageGap: boolean;
   tapZones: boolean;
-  /** Show optional milestone achievements on the profile (never shown while reading). */
-  achievements: boolean;
+  /**
+   * Profile > Rewards. Off hides every gamified surface: the Awards tab, XP, levels,
+   * quests, badges, progress rings and reward beats. Nothing is deleted; it is all derived.
+   */
+  rewards: boolean;
+  /** Opt-in weekly reading rhythm (days per week). 0 = off. Never a streak, never resets. */
+  rhythm: number;
   /** Blur covers of titles marked suggestive or adult until the reader opts in. */
   matureCovers: "blur" | "show";
 }
@@ -36,11 +41,19 @@ export const DEFAULT_SETTINGS: Settings = {
   dataSaver: false,
   pageGap: false,
   tapZones: true,
-  achievements: true,
+  rewards: true,
+  rhythm: 0,
   matureCovers: "blur",
 };
 
-let settings: Settings = { ...DEFAULT_SETTINGS, ...readLocal() };
+/** Older builds stored `achievements` (milestones on/off); it becomes `rewards`. */
+export function migrateSettings(raw: Partial<Settings> & { achievements?: boolean }): Partial<Settings> {
+  const { achievements, ...rest } = raw;
+  if (rest.rewards === undefined && typeof achievements === "boolean") rest.rewards = achievements;
+  return rest;
+}
+
+let settings: Settings = { ...DEFAULT_SETTINGS, ...migrateSettings(readLocal()) };
 const subs = new Set<() => void>();
 
 function readLocal(): Partial<Settings> {
@@ -53,7 +66,7 @@ function readLocal(): Partial<Settings> {
 
 export async function loadSettings() {
   const stored = await kvGet<Partial<Settings>>("settings").catch(() => undefined);
-  if (stored) settings = { ...DEFAULT_SETTINGS, ...stored };
+  if (stored) settings = { ...DEFAULT_SETTINGS, ...migrateSettings(stored) };
   applyTheme();
   subs.forEach((s) => s());
 }

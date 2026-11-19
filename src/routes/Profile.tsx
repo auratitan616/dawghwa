@@ -1,9 +1,10 @@
 import { useMemo, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { Award, Download, Lock, Plus, RotateCcw, Trash2, Upload } from "lucide-react";
+import { Award, Download, Plus, RotateCcw, Trash2, Upload } from "lucide-react";
 import { Avatar } from "@/components/Avatar";
 import { Kicker } from "@/components/Editorial";
 import { MascotSays } from "@/components/Mascot";
+import { ProfileSkeleton } from "@/components/States";
 import { achievements, readingStats, type ReadingStats } from "@/lib/profile/stats";
 import { Sheet } from "@/components/Layer";
 import { toast } from "@/components/Toast";
@@ -110,7 +111,7 @@ export default function Profile() {
   const stats = useMemo(() => readingStats(progress.values(), library.values(), titles), [progress, library, titles]);
   const awards = useMemo(() => achievements(stats, allCollections(state).length), [stats, state]);
   useHead({ title: "Profile and settings", noindex: true });
-  if (!profile) return null;
+  if (!profile) return <ProfileSkeleton />;
   const earned = awards.filter((a) => a.earned).length;
   const hasReading = stats.chaptersRead > 0 || stats.completed > 0 || stats.favourites > 0;
   return (
@@ -169,33 +170,33 @@ export default function Profile() {
           )}
         </>
       )}
-      {settings.achievements && (
+      {settings.rewards && (
         <section className="profile-block" aria-labelledby="awards-h">
           <div className="profile-block-head">
-            <h2 id="awards-h">Milestones</h2>
+            <h2 id="awards-h">Achievements</h2>
             <p className="muted">
               {earned} of {awards.length} · just for fun, no streaks
             </p>
           </div>
-          <ul className="awards">
-            {awards.map((a) => (
-              <li key={a.id} className="award" data-earned={a.earned || undefined}>
-                <span className="award-ico" aria-hidden="true">
-                  {a.earned ? <Award size={18} /> : <Lock size={15} />}
-                </span>
-                <span className="award-body">
-                  <b>{a.title}</b>
-                  <span className="muted">{a.earned ? a.detail : `${a.detail} · ${a.value}/${a.goal}`}</span>
-                </span>
-              </li>
-            ))}
-          </ul>
+          <Link className="btn" to="/achievements">
+            <Award size={17} aria-hidden="true" /> See all achievements
+          </Link>
         </section>
       )}
 
       <h2 className="settings-title" id="settings">
         Settings
       </h2>
+      <section className="settings-group" id="rewards" aria-labelledby="rewards-h">
+        <h3 id="rewards-h">Rewards</h3>
+        <label className="switch settings-row">
+          <span>
+            <span className="label">Show rewards</span>
+            <span className="hint">Levels, achievements, weekly quests and chapter-end moments. Off hides all of it; your reading still counts.</span>
+          </span>
+          <input type="checkbox" checked={settings.rewards} onChange={(e) => updateSettings({ rewards: e.target.checked })} />
+        </label>
+      </section>
       {isMemoryStorage() && (
         <div className="banner banner-warn" role="status">
           This browser blocks local storage, so nothing will be kept after you close the tab.
@@ -250,13 +251,7 @@ export default function Profile() {
           <span className="label">Reduce motion</span>
           <Segmented label="Reduce motion" value={settings.reduceMotion} options={[["system", "System"], ["on", "On"], ["off", "Off"]]} onChange={(v) => updateSettings({ reduceMotion: v })} />
         </div>
-        <label className="switch settings-row">
-          <span>
-            <span className="label">Show milestones</span>
-            <span className="hint">Optional achievements on this page. They never appear while you read.</span>
-          </span>
-          <input type="checkbox" checked={settings.achievements} onChange={(e) => updateSettings({ achievements: e.target.checked })} />
-        </label>
+
         <label className="switch settings-row">
           <span>
             <span className="label">Show mature covers</span>

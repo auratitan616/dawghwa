@@ -18,8 +18,8 @@ test("primary navigation reaches every section and back works", async ({ page, i
   const sections = [
     ["Library", /\/library$/, "Library"],
     ...(isMobile ? [] : ([["History", /\/history$/, "History"]] as const)),
+    ["Achievements", /\/achievements$/, "Achievements"],
     ["Profile", /\/profile$/, null],
-    ["Discover", /\/discover/, "Discover"],
   ] as const;
   for (const [name, url, heading] of sections) {
     await nav.getByRole("link", { name }).click();
@@ -27,7 +27,28 @@ test("primary navigation reaches every section and back works", async ({ page, i
     if (heading) await expect(page.getByRole("heading", { level: 1, name: heading })).toBeVisible();
   }
   await page.goBack();
-  await expect(page).toHaveURL(/\/profile$/);
+  await expect(page).toHaveURL(/\/achievements$/);
+});
+
+test("no shell top bar; Discover is reached from Search", async ({ page }) => {
+  await skipOnboarding(page);
+  await expect(page.locator("header.topbar")).toHaveCount(0);
+  await page.goto("/search");
+  await page.getByRole("link", { name: "Discover" }).first().click();
+  await expect(page).toHaveURL(/\/discover/);
+});
+
+test("Rewards toggle hides achievements and gives the nav slot back to Discover", async ({ page, isMobile }) => {
+  await skipOnboarding(page);
+  await page.goto("/profile");
+  const toggle = page.getByRole("checkbox", { name: /Show rewards/ });
+  await expect(toggle).toBeChecked();
+  await toggle.uncheck();
+  const nav = page.locator(isMobile ? "nav.bottomnav" : ".sidebar nav");
+  await expect(nav.getByRole("link", { name: "Achievements" })).toHaveCount(0);
+  await expect(nav.getByRole("link", { name: "Discover" })).toBeVisible();
+  await page.goto("/achievements");
+  await expect(page.getByRole("button", { name: "Turn rewards on" })).toBeVisible();
 });
 
 test("empty library and history show honest empty states", async ({ page }) => {

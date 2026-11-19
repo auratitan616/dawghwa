@@ -3,7 +3,7 @@ import { useOnline } from "@/lib/platform/useOnline";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { Clock, Globe, Search as SearchIcon, SlidersHorizontal, X } from "lucide-react";
+import { Clock, Compass, Globe, Search as SearchIcon, SlidersHorizontal, X } from "lucide-react";
 import { Sheet } from "@/components/Layer";
 import type { BrowseOrder, BrowseQuery, MangaKind } from "@/lib/api/types";
 import { TitleCard } from "@/components/TitleCard";
@@ -355,7 +355,12 @@ export default function Search() {
 
   return (
     <div className="page search-page">
-      <h1 className="search-title">Search</h1>
+      <div className="search-head">
+        <h1 className="search-title">Search</h1>
+        <Link className="btn btn-sm search-discover" to="/discover">
+          <Compass size={16} aria-hidden="true" /> Discover
+        </Link>
+      </div>
       <div className="search-box">
         <form
           className="search-input"

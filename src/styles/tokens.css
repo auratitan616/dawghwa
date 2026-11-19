@@ -47,7 +47,8 @@
 
   --gutter: clamp(16px, 4vw, 32px);
   --sidebar-w: 232px;
-  --topbar-h: 56px;
+  /* The shell has no top bar (docs/DECISIONS.md D6). Kept as a token so sticky offsets stay in one place. */
+  --topbar-h: 0px;
   --bottomnav-h: 62px;
   --safe-top: env(safe-area-inset-top, 0px);
   --safe-bottom: env(safe-area-inset-bottom, 0px);
@@ -61,6 +62,15 @@
   --dur-fast: 120ms;
   --dur: 200ms;
   --dur-slow: 320ms;
+
+  /* motion for reward moments (Phase 1). Reduced motion zeroes these below. */
+  --dur-celebrate: 3200ms; /* how long a reward card stays up */
+  --dur-enter: 360ms; /* reward card / badge entrance */
+  --dur-ring: 700ms; /* progress ring fill */
+  --stagger: 45ms; /* per-item delay in badge grids */
+  --rise: 10px; /* entrance travel distance */
+  --pop-scale: 1.08;
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
 
   /* brand constants (theme independent) */
   --vermilion: #ff5948;
@@ -151,6 +161,23 @@
   --skeleton-b: #f1f0eb;
 }
 
+[data-reduce-motion] {
+  --dur-enter: 0ms;
+  --dur-ring: 0ms;
+  --stagger: 0ms;
+  --rise: 0px;
+  --pop-scale: 1;
+}
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --dur-enter: 0ms;
+    --dur-ring: 0ms;
+    --stagger: 0ms;
+    --rise: 0px;
+    --pop-scale: 1;
+  }
+}
+
 /* semantic aliases (prefer these in new code) */
 :root {
   --color-background: var(--bg);
@@ -167,4 +194,16 @@
   --color-error: var(--bad);
   --color-focus: var(--accent-text);
   --color-disabled: var(--ink-4);
+
+  /* rewards: existing accents only. Lime = earned / XP (action family), lavender = mascot and quests, vermilion = new. */
+  --reward-xp: var(--accent);
+  --reward-xp-text: var(--accent-text);
+  --reward-quest: var(--lavender);
+  --reward-quest-text: var(--lavender-text);
+  --reward-new: var(--hot);
+  --ring-track: var(--surface-3);
+  /* achievement tiers I / II / III */
+  --tier-1: var(--ink-3);
+  --tier-2: var(--lavender);
+  --tier-3: var(--lime);
 }

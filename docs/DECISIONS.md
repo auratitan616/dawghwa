@@ -21,3 +21,6 @@ Choices made without stopping to ask, each resolved toward the design system and
 | D8 | Reader "scroll only" | Vertical scroll is the only layout. Single, double, direction, fit and tap-zone settings are removed, and stored values are ignored. |
 | D9 | Reader top bar "stuck on top" | The top bar is always visible (fixed, safe-area aware) and tapping no longer hides it. On Android the status bar still hides while reading. |
 | D10 | "Progress page bar on the bottom should be removed" | The bottom bar is gone. Chapter navigation moves to the end of the chapter (Next Episode card) and the chapter list in the top bar. A 2px reading-progress line stays along the bottom edge of the top bar, because it is part of the top bar and costs no space. |
+| D11 | Rewards toggle scope | `settings.rewards` is a device setting like theme (same place the old "Show milestones" switch lived), migrated from `achievements`. Off hides every gamified surface; nothing is deleted because it is all derived. |
+| D12 | Reward card placement | Reward cards appear at the top of the screen (toasts stay at the bottom), max two at once, auto-dismiss after `--dur-celebrate`, with a 44px close button. They never take focus and use `role="status"`. |
+| D13 | Haptics | Success haptic for level-ups and series completion, light for the rest; skipped under reduced motion and on the web. |

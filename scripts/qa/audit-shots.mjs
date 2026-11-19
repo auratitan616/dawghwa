@@ -24,7 +24,7 @@ for (const theme of THEMES) for (const vp of VPS) {
   const skip = page.getByRole("button", { name: /^(Skip|Cancel|Skip for now)$/ }).first();
   if (await skip.count()) await skip.click();
   await page.waitForTimeout(800);
-  for (const [name, path] of [["home", "/"], ["search", "/search"], ["discover", "/discover"], ["library", "/library"], ["history", "/history"], ["profile", "/profile"], ["rewards", "/rewards"], ["about", "/about"]]) {
+  for (const [name, path] of [["home", "/"], ["search", "/search"], ["discover", "/discover"], ["library", "/library"], ["history", "/history"], ["profile", "/profile"], ["achievements", "/achievements"], ["about", "/about"]]) {
     await page.goto(base + path);
     await page.waitForTimeout(Number(process.env.WAIT || 3500));
     await shot(name);
