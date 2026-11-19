@@ -3785,3 +3785,29 @@ fieldset legend { padding: 0; margin-bottom: var(--space-2); }
 .avatar-frame[data-frame="sparkle"]::before, .avatar-frame[data-frame="sparkle"]::after { content: ""; position: absolute; width: 22%; height: 22%; background: var(--lavender); clip-path: polygon(50% 0, 62% 38%, 100% 50%, 62% 62%, 50% 100%, 38% 62%, 0 50%, 38% 38%); }
 .avatar-frame[data-frame="sparkle"]::before { top: -8%; right: -6%; }
 .avatar-frame[data-frame="sparkle"]::after { bottom: -6%; left: -8%; width: 16%; height: 16%; }
+
+/* ============================================================ phase 4: series rings */
+.card-cover {
+  position: relative;
+  display: block;
+}
+.card-ring {
+  position: absolute;
+  left: 6px;
+  bottom: 6px;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: rgb(13 13 16 / 0.72);
+  pointer-events: none;
+}
+.continue-ring {
+  flex: none;
+}
+.continue-ring .continue-go {
+  width: 34px;
+  height: 34px;
+}

@@ -73,6 +73,26 @@ export interface EventRecord {
   context?: string;
 }
 
+/**
+ * A chapter comment. Stored on this device for this profile only (D5); there is
+ * no server and no audience. `parentId` makes it a reply, `pinned` puts it under
+ * "Top", `vote` is the reader's own thumbs up/down.
+ */
+export interface CommentRecord {
+  profileId: string;
+  id: string;
+  titleKey: string;
+  chapterId: string;
+  chapterNumber?: number;
+  body: string;
+  parentId?: string;
+  pinned?: boolean;
+  vote?: 1 | -1;
+  at: number;
+  updatedAt: number;
+  editedAt?: number;
+}
+
 export interface Hidden {
   profileId: string;
   titleKey: string;
@@ -87,24 +107,36 @@ interface DawghwaDB extends DBSchema {
   progress: { key: [string, string]; value: ProgressRecord; indexes: { byProfile: string } };
   hidden: { key: [string, string]; value: Hidden; indexes: { byProfile: string } };
   events: { key: [string, number]; value: EventRecord; indexes: { byProfile: string } };
+  comments: { key: [string, string]; value: CommentRecord; indexes: { byProfile: string; byChapter: [string, string] } };
   intel: { key: string; value: { profileId: string; state: unknown; updatedAt: number } };
   kv: { key: string; value: { key: string; value: unknown } };
 }
+
+/** v1: initial schema. v2: `comments` store. Upgrades are additive and tested in db.test.ts. */
+export const DB_VERSION = 2;
 
 let dbp: Promise<IDBPDatabase<DawghwaDB>> | null = null;
 
 export function db(): Promise<IDBPDatabase<DawghwaDB>> {
   if (!dbp) {
-    dbp = openDB<DawghwaDB>("dawghwa", 1, {
-      upgrade(d) {
-        d.createObjectStore("profiles", { keyPath: "id" });
-        d.createObjectStore("titles", { keyPath: "key" });
-        d.createObjectStore("library", { keyPath: ["profileId", "titleKey"] }).createIndex("byProfile", "profileId");
-        d.createObjectStore("progress", { keyPath: ["profileId", "titleKey"] }).createIndex("byProfile", "profileId");
-        d.createObjectStore("hidden", { keyPath: ["profileId", "titleKey"] }).createIndex("byProfile", "profileId");
-        d.createObjectStore("events", { keyPath: ["profileId", "seq"] }).createIndex("byProfile", "profileId");
-        d.createObjectStore("intel", { keyPath: "profileId" });
-        d.createObjectStore("kv", { keyPath: "key" });
+    dbp = openDB<DawghwaDB>("dawghwa", DB_VERSION, {
+      upgrade(d, oldVersion) {
+        if (oldVersion < 1) {
+          d.createObjectStore("profiles", { keyPath: "id" });
+          d.createObjectStore("titles", { keyPath: "key" });
+          d.createObjectStore("library", { keyPath: ["profileId", "titleKey"] }).createIndex("byProfile", "profileId");
+          d.createObjectStore("progress", { keyPath: ["profileId", "titleKey"] }).createIndex("byProfile", "profileId");
+          d.createObjectStore("hidden", { keyPath: ["profileId", "titleKey"] }).createIndex("byProfile", "profileId");
+          d.createObjectStore("events", { keyPath: ["profileId", "seq"] }).createIndex("byProfile", "profileId");
+          d.createObjectStore("intel", { keyPath: "profileId" });
+          d.createObjectStore("kv", { keyPath: "key" });
+        }
+        // v2 (Phase 4): chapter comments. Additive; v1 data is untouched.
+        if (oldVersion < 2) {
+          const c = d.createObjectStore("comments", { keyPath: ["profileId", "id"] });
+          c.createIndex("byProfile", "profileId");
+          c.createIndex("byChapter", ["profileId", "chapterId"]);
+        }
       },
       blocking() {
         // another tab upgraded the schema: close so it can proceed

@@ -283,14 +283,6 @@ export default function Profile() {
 
       <section className="settings-group" aria-labelledby="reading-h">
         <h2 id="reading-h">Reading</h2>
-        <div className="settings-row">
-          <span className="label">Default layout</span>
-          <Segmented label="Default layout" value={settings.readerMode} options={[["auto", "Auto"], ["vertical", "Scroll"], ["single", "Single"], ["double", "Double"]]} onChange={(v) => updateSettings({ readerMode: v })} />
-        </div>
-        <div className="settings-row">
-          <span className="label">Manga direction</span>
-          <Segmented label="Manga direction" value={settings.direction} options={[["rtl", "Right to left"], ["ltr", "Left to right"]]} onChange={(v) => updateSettings({ direction: v })} />
-        </div>
         <label className="switch settings-row">
           <span>
             <span className="label">Auto-continue to next chapter</span>

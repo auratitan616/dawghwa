@@ -1,6 +1,6 @@
 import { celebrate } from "@/components/Celebrate";
 import { getSettings } from "../settings";
-import { getUser, onSignal } from "../store/user";
+import { getUser, onSignal, subscribeUser, type UserState } from "../store/user";
 import { gains, progressionFor, type Gains, type Progression, type Quest } from "./index";
 import { newlyUnlocked, type Cosmetic } from "./cosmetics";
 
@@ -35,10 +35,33 @@ export function describe(g: Moment): { kind: "level" | "badge" | "genre" | "seri
   return null;
 }
 
+/** Collections with at least two series where every series is marked Completed. */
+export function completedCollections(s: Pick<UserState, "library">): Set<string> {
+  const by = new Map<string, boolean[]>();
+  for (const r of s.library.values()) for (const c of r.collections) by.set(c, [...(by.get(c) ?? []), r.status === "completed"]);
+  return new Set([...by].filter(([, xs]) => xs.length >= 2 && xs.every(Boolean)).map(([c]) => c));
+}
+
 let started = false;
 export function startRewards() {
   if (started) return;
   started = true;
+  // Collection completion is derived from the library; only a change seen while the app
+  // runs is celebrated (never on load), once per collection per session.
+  let pid = getUser().profile?.id;
+  let done = completedCollections(getUser());
+  subscribeUser(() => {
+    const s = getUser();
+    const now = completedCollections(s);
+    if (s.profile?.id !== pid) {
+      pid = s.profile?.id;
+      done = now;
+      return;
+    }
+    const fresh = [...now].filter((c) => !done.has(c));
+    done = new Set([...done, ...now]);
+    if (fresh.length && getSettings().rewards) celebrate({ kind: "series", title: `Collection complete: ${fresh[0]}`, detail: "Every series in it is finished.", mascot: true });
+  });
   onSignal((e) => {
     if (!RELEVANT.has(e.kind) || !getSettings().rewards) return;
     const s = getUser();

@@ -57,6 +57,9 @@ The blueprint (WEBTOON-style screens, see `docs/DAWGHWA_AUDIT.md`) sets the stru
 | Quest card / list / Home strip | `src/components/Quests.tsx` (`.quest*`) | n/a |
 | Avatar with cosmetic frame | `src/components/ProfileAvatar.tsx` (`.pavatar*`) | n/a |
 | Segmented control | `src/components/Segmented.tsx` (`.segmented`) | n/a |
+| Comments sheet / list / composer | `src/components/Comments.tsx` (`.cm*`) | n/a |
+| Reader top bar, end panel, reward beat | `src/routes/Reader.tsx` (`.rd-top`, `.rd-end`, `.rd-beat`) | n/a |
+| Series progress ring on cards | `ProgressRing` + `useSeriesFraction` (`.card-ring`, `.continue-ring`) | n/a |
 | Achievements page | `src/routes/Achievements.tsx` (`.ach-*`, `.badge-grid`) | n/a |
 
 ## Layout breakpoints

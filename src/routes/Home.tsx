@@ -23,6 +23,8 @@ import { MascotSays } from "@/components/Mascot";
 import { Brand } from "@/components/Brand";
 import { QuestStrip } from "@/components/Quests";
 import { ProfileAvatar } from "@/components/ProfileAvatar";
+import { ProgressRing, useSeriesFraction } from "@/components/ProgressRing";
+import type { ProgressRecord } from "@/lib/store/db";
 import { readerPath, titlePath, type Title, isMature, isKnownUnreadable } from "@/lib/titles";
 
 const MIN_ROW = 6;
@@ -208,7 +210,17 @@ function ContinueReading() {
         const left = t.latestChapter ? Math.max(0, Math.floor(t.latestChapter - p.chapterNumber)) : undefined;
         const pct = Math.round(p.fraction * 100);
         return (
-          <Link key={p.titleKey} className="continue-card" to={readerPath(t, p.chapterId, p.page || undefined)} aria-label={`Resume ${t.title}, chapter ${p.chapterNumber}, ${pct}% read`}>
+          <ContinueCard key={p.titleKey} p={p} t={t} left={left} pct={pct} />
+        );
+      })}
+    </Row>
+  );
+}
+
+function ContinueCard({ p, t, left, pct }: { p: ProgressRecord; t: Title; left?: number; pct: number }) {
+  const series = useSeriesFraction(t.key, t.latestChapter);
+  return (
+          <Link className="continue-card" to={readerPath(t, p.chapterId, p.page || undefined)} aria-label={`Resume ${t.title}, chapter ${p.chapterNumber}, ${pct}% read`}>
             <Cover mature={isMature(t)} src={t.cover} title={t.title} sizes="64px" />
             <span className="continue-body">
               <span className="title">{t.title}</span>
@@ -220,13 +232,18 @@ function ContinueReading() {
                 <i style={{ width: `${pct}%` }} />
               </span>
             </span>
-            <span className="continue-go" aria-hidden="true">
-              <Play size={16} fill="currentColor" />
-            </span>
+            {series !== undefined ? (
+              <ProgressRing value={series} size={44} stroke={3} className="continue-ring" label={`${Math.round(series * 100)}% of the series read`}>
+                <span className="continue-go" aria-hidden="true">
+                  <Play size={14} fill="currentColor" />
+                </span>
+              </ProgressRing>
+            ) : (
+              <span className="continue-go" aria-hidden="true">
+                <Play size={16} fill="currentColor" />
+              </span>
+            )}
           </Link>
-        );
-      })}
-    </Row>
   );
 }
 

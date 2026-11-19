@@ -25,7 +25,8 @@ export function registerProgressionInput(fn: Extra) {
 
 export function progressionFor(s: UserState, events = s.events, now = Date.now()): Progression {
   let xp: XpEntry[] = [];
-  let comments = 0;
+  // Distinct chapters commented on, from the event log: deleting and re-posting can't farm it.
+  let comments: number = new Set(events.filter((e) => e.kind === "comment").map((e) => e.context ?? e.titleKey)).size;
   for (const f of extras) {
     const r = f({ ...s, events });
     if (r.xp) xp = xp.concat(r.xp);
