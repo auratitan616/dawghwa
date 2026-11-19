@@ -42,7 +42,9 @@ export async function exportProfile(profileId = getUser().profile?.id): Promise<
     const { cachedAt: _c, ...rest } = t as Title & { cachedAt?: number };
     return rest;
   });
-  const { id: _id, ...p } = profile;
+  const { id: _id, ...rest } = profile;
+  // the quest seed travels so the same week shows the same quests after import (D34)
+  const p = { ...rest, questSeed: profile.questSeed ?? profile.id };
   return { format: "dawghwa-profile", version: 2, exportedAt: new Date().toISOString(), profile: p, library: strip(library), progress: strip(progress), hidden: strip(hidden), events: strip(events), comments: strip(comments), titles };
 }
 
@@ -61,7 +63,7 @@ export async function importProfile(json: string): Promise<ProfileRecord> {
   }
   if (!isExport(data)) throw new Error("That file isn't a Dawghwa profile export.");
   const base = newProfile(data.profile.name || "Imported", getUser().profiles.length);
-  const profile: ProfileRecord = { ...base, name: `${data.profile.name || "Imported"}`.slice(0, 40), color: data.profile.color || base.color, onboarded: true, prefs: { ...base.prefs, ...data.profile.prefs }, cosmetics: data.profile.cosmetics, rhythm: data.profile.rhythm };
+  const profile: ProfileRecord = { ...base, name: `${data.profile.name || "Imported"}`.slice(0, 40), color: data.profile.color || base.color, onboarded: true, prefs: { ...base.prefs, ...data.profile.prefs }, cosmetics: data.profile.cosmetics, rhythm: data.profile.rhythm, pin: validPin(data.profile.pin), questSeed: typeof data.profile.questSeed === "string" && data.profile.questSeed ? data.profile.questSeed.slice(0, 64) : base.id };
   const pid = profile.id;
   const d = await db();
   const tx = d.transaction(["profiles", "library", "progress", "hidden", "events", "comments"], "readwrite");
@@ -76,6 +78,11 @@ export async function importProfile(json: string): Promise<ProfileRecord> {
   await cacheTitles((data.titles ?? []).filter((t) => t && typeof t.key === "string" && typeof t.title === "string"));
   await switchProfile(pid);
   return profile;
+}
+
+function validPin(p: unknown): ProfileRecord["pin"] {
+  const x = p as ProfileRecord["pin"];
+  return x && typeof x.salt === "string" && /^[0-9a-f]{64}$/.test(x.hash ?? "") ? { salt: x.salt, hash: x.hash } : undefined;
 }
 
 export function downloadJson(name: string, data: unknown) {

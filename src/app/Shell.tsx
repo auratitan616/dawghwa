@@ -26,6 +26,8 @@ import { useSettings } from "@/lib/settings";
 import { apiHealth } from "@/lib/api/client";
 import { useOnline } from "@/lib/platform/useOnline";
 import { useUser } from "@/lib/store/user";
+import { useSignInRequired } from "@/lib/store/accounts";
+import { SignIn } from "@/components/SignIn";
 import { updateReady, applyUpdate } from "./pwa";
 
 type NavItem = { to: string; label: string; icon: typeof Home; end?: boolean; aria?: string };
@@ -61,6 +63,7 @@ export function Shell() {
   const { rewards } = useSettings();
   const NAV = navItems(rewards);
   const ready = useUser((s) => s.ready);
+  const locked = useSignInRequired();
   useEffect(() => {
     // Reward moments are optional and lazy: the engine stays out of the initial bundle.
     if (ready) void import("@/lib/rewards/runtime").then((m) => m.startRewards());
@@ -83,6 +86,7 @@ export function Shell() {
   }, [nav]);
   // Title pages bring their own header and sticky read button on phones (blueprint), so the shell steps aside there.
   const immersive = loc.pathname.startsWith("/title/");
+  if (locked) return <SignIn />;
   return (
     <div className="shell" data-own-chrome={immersive || undefined}>
       <a className="skip-link" href="#main">

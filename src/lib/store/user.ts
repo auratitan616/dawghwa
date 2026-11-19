@@ -77,18 +77,19 @@ export function onSignal(fn: (e: EventRecord, t?: Title) => void) {
   return () => signalListeners.delete(fn);
 }
 
-const COLORS = ["#ff5a36", "#3fb8af", "#f2b134", "#8c7dff", "#ef6f9a", "#5aa9e6"];
+export const PROFILE_COLORS = ["#ff5a36", "#3fb8af", "#f2b134", "#8c7dff", "#ef6f9a", "#5aa9e6"];
 
 export function newProfile(name: string, index = 0): ProfileRecord {
   const now = Date.now();
   return {
     id: crypto.randomUUID(),
     name: name.trim() || "Reader",
-    color: COLORS[index % COLORS.length]!,
+    color: PROFILE_COLORS[index % PROFILE_COLORS.length]!,
     createdAt: now,
     updatedAt: now,
     onboarded: false,
     prefs: { genres: [], kinds: [], avoid: [], personalize: true },
+    questSeed: crypto.randomUUID(),
   };
 }
 

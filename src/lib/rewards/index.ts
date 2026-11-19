@@ -32,7 +32,7 @@ export function progressionFor(s: UserState, events = s.events, now = Date.now()
     if (r.xp) xp = xp.concat(r.xp);
     comments += r.comments ?? 0;
   }
-  const book = questBook(s.profile?.id ?? "", events, s.titles, now);
+  const book = questBook(s.profile?.questSeed ?? s.profile?.id ?? "", events, s.titles, now);
   xp = xp.concat(book.done.map((q) => ({ at: q.doneAt!, xp: XP.quest, reason: "quest" as const, ref: q.title })));
   const l = ledger(events, s.titles, xp);
   return { ledger: l, level: levelFor(l.total), sets: achievementSets({ ledger: l, library: s.library.values(), collections: allCollections(s).length, quests: book.done.length, comments }), stamps: passport(l), quests: book };

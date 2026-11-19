@@ -27,6 +27,13 @@ export interface ProfileRecord {
   cosmetics?: { frame?: string; emblem?: string };
   /** Opt-in weekly reading rhythm, in days per week. 0 or missing = off. */
   rhythm?: number;
+  /**
+   * Optional 4-digit sign-in PIN (D4): SHA-256 of salt + PIN. A privacy curtain for
+   * shared devices, not security; the data itself is not encrypted.
+   */
+  pin?: { salt: string; hash: string };
+  /** Seed for weekly quests. Missing = the profile id. Import keeps the original, so quests survive a move (D34). */
+  questSeed?: string;
 }
 
 export interface LibraryRecord {
