@@ -34,6 +34,8 @@ The blueprint (WEBTOON-style screens, see `docs/DAWGHWA_AUDIT.md`) sets the stru
 - 4px base: `--space-1` (4) to `--space-16` (64). The page gutter is `clamp(16px, 4vw, 32px)`.
 - Radius: 6px (`--radius-sm`), 8px for covers (`--radius-card`), 14px for hero and sheets, and full for pills.
 - Motion: `--dur-fast` 120ms, `--dur` 200ms, `--dur-slow` 320ms, with `--ease-out`. Under reduced motion, animations are removed and the onboarding "Finding stories" beat is skipped.
+- Reward motion tokens: `--dur-enter` 360ms (reward card in), `--dur-ring` 700ms (ring fill), `--dur-celebrate` 3200ms (how long a reward card stays), `--stagger` 45ms, `--rise` 10px, `--pop-scale` 1.08, `--ease-spring`. All are zeroed under `[data-reduce-motion]` and `prefers-reduced-motion`, so rewards appear and change instantly. There is no confetti.
+- Reward colours are aliases, not new hues: `--reward-xp` = lime (action, progress), `--reward-quest` = lavender (mascot, quests, cosmetics), `--reward-new` = vermilion (new genre stamps), `--ring-track`, and badge tiers `--tier-1` ink-3, `--tier-2` lavender, `--tier-3` lime.
 
 ## Components (where they live)
 
@@ -48,7 +50,11 @@ The blueprint (WEBTOON-style screens, see `docs/DAWGHWA_AUDIT.md`) sets the stru
 | Onboarding chips, Next (n), finding splash | `src/routes/Onboarding.tsx` (`.onboard-*`) | Onboarding |
 | Sheets, menu rows (56/64px), radio dots | `src/components/Layer.tsx`, `.menu-item`, `.radio-dot` | Bottom sheets |
 | Toast with Undo | `src/components/Toast.tsx` | "Subscribed to your list" |
-| Empty, error and offline states | `src/components/States.tsx` | Centred empty copy |
+| Empty, error and offline states; `ProfileSkeleton`, `ListSkeleton` | `src/components/States.tsx` | Centred empty copy |
+| Reward card (`celebrate()`, haptics, optional mascot) | `src/components/Celebrate.tsx` (`.reward-*`) | n/a (gamification layer) |
+| Progress ring | `src/components/ProgressRing.tsx` (`.ring*`) | n/a |
+| Badge medallion (locked, tiers I-III, progress ring) | `src/components/Badge.tsx` (`.badge*`) | n/a |
+| Achievements page | `src/routes/Achievements.tsx` (`.ach-*`, `.badge-grid`) | n/a |
 
 ## Layout breakpoints
 

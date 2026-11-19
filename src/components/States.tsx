@@ -33,6 +33,39 @@ export function GridSkeleton({ count = 12 }: { count?: number }) {
   );
 }
 
+/** Placeholder for profile-shaped pages while the local store opens (no flash of empty states). */
+export function ProfileSkeleton() {
+  return (
+    <div className="page page-narrow" aria-busy="true" aria-label="Loading">
+      <div className="skeleton-head">
+        <div className="skeleton skeleton-avatar" />
+        <div style={{ flex: 1 }}>
+          <div className="skeleton skeleton-line" style={{ width: "40%" }} />
+          <div className="skeleton skeleton-line" style={{ width: "70%" }} />
+        </div>
+      </div>
+      <div className="skeleton skeleton-block" />
+      <div className="skeleton skeleton-block" />
+    </div>
+  );
+}
+
+export function ListSkeleton({ rows = 5 }: { rows?: number }) {
+  return (
+    <div aria-busy="true" aria-label="Loading">
+      {Array.from({ length: rows }, (_, i) => (
+        <div key={i} className="skeleton-row">
+          <div className="skeleton skeleton-thumb" />
+          <div style={{ flex: 1 }}>
+            <div className="skeleton skeleton-line" style={{ width: "60%" }} />
+            <div className="skeleton skeleton-line" style={{ width: "35%" }} />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export function EmptyState({ title, children, action, pose = "empty", center }: { title: string; children?: ReactNode; action?: ReactNode; pose?: Pose; center?: boolean }) {
   return (
     <div className={`state ${center ? "state-center" : ""}`}>

@@ -1,4 +1,4 @@
-import { useEffect, useState, useSyncExternalStore } from "react";
+import { useEffect, useSyncExternalStore } from "react";
 import {
   NavLink,
   Outlet,
@@ -7,6 +7,7 @@ import {
   useNavigate,
 } from "react-router-dom";
 import {
+  Award,
   BookOpen,
   Compass,
   History,
@@ -20,18 +21,23 @@ import {
 import { Brand } from "@/components/Brand";
 import { Avatar } from "@/components/Avatar";
 import { Toasts } from "@/components/Toast";
+import { Celebrations } from "@/components/Celebrate";
+import { useSettings } from "@/lib/settings";
 import { apiHealth } from "@/lib/api/client";
 import { useOnline } from "@/lib/platform/useOnline";
 import { useUser } from "@/lib/store/user";
 import { updateReady, applyUpdate } from "./pwa";
 
-const NAV = [
-  { to: "/", label: "Home", icon: Home, end: true },
-  { to: "/discover", label: "Discover", icon: Compass },
-  { to: "/search", label: "Search", icon: Search },
-  { to: "/library", label: "Library", icon: BookOpen },
-  { to: "/profile", label: "Profile", icon: User },
-];
+type NavItem = { to: string; label: string; icon: typeof Home; end?: boolean; aria?: string };
+const HOME: NavItem = { to: "/", label: "Home", icon: Home, end: true };
+const SEARCH: NavItem = { to: "/search", label: "Search", icon: Search };
+const LIBRARY: NavItem = { to: "/library", label: "Library", icon: BookOpen };
+const AWARDS: NavItem = { to: "/achievements", label: "Awards", icon: Award, aria: "Achievements" };
+const DISCOVER: NavItem = { to: "/discover", label: "Discover", icon: Compass };
+const PROFILE: NavItem = { to: "/profile", label: "Profile", icon: User };
+
+/** Five slots (docs/DECISIONS.md D7). With Rewards off the Awards slot gives way to Discover. */
+export const navItems = (rewards: boolean): NavItem[] => [HOME, SEARCH, LIBRARY, rewards ? AWARDS : DISCOVER, PROFILE];
 
 function useApiHealth() {
   return useSyncExternalStore(
@@ -52,12 +58,8 @@ export function Shell() {
     updateReady.get,
   );
   const profile = useUser((s) => s.profile);
-  const [scrolled, setScrolled] = useState(false);
-  useEffect(() => {
-    const on = () => setScrolled(window.scrollY > 4);
-    window.addEventListener("scroll", on, { passive: true });
-    return () => window.removeEventListener("scroll", on);
-  }, []);
+  const { rewards } = useSettings();
+  const NAV = navItems(rewards);
   useEffect(() => {
     const key = (e: KeyboardEvent) => {
       const t = e.target as HTMLElement;
@@ -74,7 +76,6 @@ export function Shell() {
     window.addEventListener("keydown", key);
     return () => window.removeEventListener("keydown", key);
   }, [nav]);
-  const inSearch = loc.pathname.startsWith("/search");
   // Title pages bring their own header and sticky read button on phones (blueprint), so the shell steps aside there.
   const immersive = loc.pathname.startsWith("/title/");
   return (
@@ -87,12 +88,18 @@ export function Shell() {
           <Brand />
         </NavLink>
         <nav>
-          {NAV.map(({ to, label, icon: Icon, end }) => (
+          {NAV.map(({ to, label, icon: Icon, end, aria }) => (
             <NavLink key={to} to={to} end={end}>
               <Icon size={19} strokeWidth={1.9} />
-              {label}
+              {aria ?? label}
             </NavLink>
           ))}
+          {rewards && (
+            <NavLink to="/discover">
+              <Compass size={19} strokeWidth={1.9} />
+              Discover
+            </NavLink>
+          )}
           <NavLink to="/history">
             <History size={19} strokeWidth={1.9} />
             History
@@ -130,31 +137,6 @@ export function Shell() {
         </div>
       </aside>
       <div className="main">
-        <header className="topbar" data-scrolled={scrolled ? "" : undefined}>
-          <NavLink to="/" aria-label="Dawghwa home" className="brand-link">
-            <Brand />
-          </NavLink>
-          {!inSearch && (
-            <button
-              className="search-trigger"
-              onClick={() => nav("/search")}
-              aria-label="Search"
-            >
-              <Search size={18} />
-              <span>Search titles, or try "completed fantasy manhwa"</span>
-              <kbd>/</kbd>
-            </button>
-          )}
-          {profile && (
-            <NavLink
-              to="/profile"
-              className="topbar-avatar"
-              aria-label={`Profile: ${profile.name}`}
-            >
-              <Avatar name={profile.name} color={profile.color} size={32} />
-            </NavLink>
-          )}
-        </header>
         {!online ? (
           <div className="banner banner-warn" role="status">
             <WifiOff size={16} /> You're offline. Library, history and saved
@@ -195,8 +177,8 @@ export function Shell() {
         )}
       </div>
       <nav className="bottomnav" aria-label="Primary">
-        {NAV.map(({ to, label, icon: Icon, end }) => (
-          <NavLink key={to} to={to} end={end}>
+        {NAV.map(({ to, label, icon: Icon, end, aria }) => (
+          <NavLink key={to} to={to} end={end} aria-label={aria}>
             <span className="nav-ico">
               <Icon size={21} strokeWidth={2} />
             </span>
@@ -205,6 +187,7 @@ export function Shell() {
         ))}
       </nav>
       <Toasts />
+      <Celebrations />
       <ScrollRestoration getKey={(l) => l.pathname + l.search} />
     </div>
   );
