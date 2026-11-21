@@ -25,6 +25,10 @@ export interface Settings {
   gridDensity: "covers" | "compact";
   /** Reader strip width on tablets and desktop (D65). Phones always use the full width. */
   readerWidth: "fit" | "comfortable" | "narrow";
+  /** Reader auto-scroll speed in CSS pixels per second (src/lib/autoScroll.ts). */
+  autoScrollSpeed: number;
+  /** Glide continuously or move a screen at a time. Reduced motion always steps. */
+  autoScrollMode: "continuous" | "step";
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -36,6 +40,8 @@ export const DEFAULT_SETTINGS: Settings = {
   matureCovers: "blur",
   gridDensity: "covers",
   readerWidth: "comfortable",
+  autoScrollSpeed: 80,
+  autoScrollMode: "continuous",
 };
 
 /** Older builds stored `achievements` (milestones on/off); it becomes `rewards`. */
@@ -44,6 +50,9 @@ export function migrateSettings(raw: Partial<Settings> & { achievements?: boolea
   const { achievements, ...rest } = raw as Partial<Settings> & { achievements?: boolean } & Record<string, unknown>;
   for (const k of RETIRED) delete (rest as Record<string, unknown>)[k];
   if (rest.rewards === undefined && typeof achievements === "boolean") rest.rewards = achievements;
+  // stored values are untrusted: a bad speed or mode falls back to the default
+  if (rest.autoScrollSpeed !== undefined && !(typeof rest.autoScrollSpeed === "number" && rest.autoScrollSpeed >= 20 && rest.autoScrollSpeed <= 400)) delete rest.autoScrollSpeed;
+  if (rest.autoScrollMode !== undefined && rest.autoScrollMode !== "continuous" && rest.autoScrollMode !== "step") delete rest.autoScrollMode;
   return rest;
 }
 
