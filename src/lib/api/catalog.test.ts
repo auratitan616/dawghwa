@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import raw from "@/test/fixtures/catalog.json";
-import { localOnly, toCatalogParams, toResult, type CatalogItem } from "./catalog";
+import type { BrowseQuery } from "./types";
+import { localOnly, toCatalogParams, toResult, UnsupportedFilterError, type CatalogItem } from "./catalog";
 
 const items = (raw as unknown as { items: CatalogItem[] }).items;
 const genres = new Set(["action", "fantasy", "romance"]);
@@ -27,6 +28,26 @@ describe("catalogue adapter", () => {
     expect(p.has("status")).toBe(false);
     expect(localOnly({ kinds: ["manga", "manhwa"], status: ["ongoing", "hiatus"], demographic: ["seinen"] })).toEqual(["kinds", "status", "demographic"]);
     expect(localOnly({ kinds: ["manga"], status: ["ongoing"] })).toEqual([]);
+  });
+
+  it("sends several formats, statuses and demographics to a server that advertises them", () => {
+    const server = new Set(["formats", "statuses", "demographics", "genreMode"]);
+    const q: BrowseQuery = { kinds: ["manga", "manhwa"], status: ["ongoing", "hiatus"], demographic: ["seinen"], includedTags: ["Action", "Romance"], tagMode: "any" };
+    const p = toCatalogParams(q, new Set(["action", "romance"]), server);
+    expect(p.getAll("format")).toEqual(["manga", "manhwa"]);
+    expect(p.getAll("status")).toEqual(["ongoing", "hiatus"]);
+    expect(p.getAll("demographic")).toEqual(["seinen"]);
+    expect(p.getAll("genre")).toEqual(["Action", "Romance"]);
+    expect(p.get("genreMode")).toBe("or");
+    expect(localOnly(q, server)).toEqual([]);
+  });
+
+  it("refuses match-any rather than silently sending match-all to an older API", () => {
+    expect(() => toCatalogParams({ includedTags: ["Action", "Romance"], tagMode: "any" }, genres)).toThrow(UnsupportedFilterError);
+    // one tag: all and any are the same query
+    expect(toCatalogParams({ includedTags: ["Action"], tagMode: "any" }, genres).has("genreMode")).toBe(false);
+    // demographic is never sent to a server that cannot apply it
+    expect(toCatalogParams({ demographic: ["seinen"] }, genres).has("demographic")).toBe(false);
   });
 
   it("defaults to relevance for text and popularity otherwise, and clamps limit", () => {

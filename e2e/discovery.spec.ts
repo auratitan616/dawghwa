@@ -52,3 +52,64 @@ test("shelf arrows land on a card edge", async ({ page, isMobile }) => {
   });
   expect(aligned).toBe(true);
 });
+
+test("advanced filters live in the URL, survive reload/back, and reach the API as server filters", async ({ page }) => {
+  test.skip(!(await apiUp(page)), "API not running");
+  await skipOnboarding(page);
+  const caps = await (await page.request.get("/api/catalog/filters?provider=mangadex")).json();
+  test.skip(!caps.capabilities.filters.includes("statuses"), "API without multi-value catalogue filters");
+  const calls: URL[] = [];
+  page.on("request", (r) => {
+    const u = new URL(r.url());
+    if (u.pathname === "/api/catalog") calls.push(u);
+  });
+  await page.goto("/discover?view=all");
+  // Desktop shows the panel inline, phones open it from a button. Wait for one of them before choosing.
+  const inline = page.locator(".discover-filters");
+  await expect(inline.or(page.getByRole("button", { name: /^Filters/ })).first()).toBeVisible();
+  let panel = (await inline.isVisible()) ? inline : null;
+  if (!panel) {
+    await page.getByRole("button", { name: /^Filters/ }).click();
+    panel = page.getByRole("dialog");
+  }
+  await panel.getByRole("button", { name: "Ongoing", exact: true }).click();
+  await panel.getByRole("button", { name: "Hiatus", exact: true }).click();
+  await panel.getByRole("button", { name: "Manhwa", exact: true }).click();
+  await panel.getByRole("button", { name: "Manhua", exact: true }).click();
+  await panel.getByRole("button", { name: "Seinen", exact: true }).click();
+  await panel.getByRole("button", { name: "Action: any" }).click();
+  await panel.getByRole("button", { name: "Fantasy: any" }).click();
+  await panel.getByRole("radio", { name: "Match any" }).click();
+  await panel.getByRole("button", { name: "Horror: any" }).click();
+  await panel.getByRole("button", { name: "Horror: included" }).click();
+  await panel.getByRole("combobox", { name: "Release year" }).selectOption("2020");
+
+  await expect(page).toHaveURL(/status=ongoing%2Chiatus|status=ongoing,hiatus/);
+  const url = new URL(page.url());
+  expect(url.searchParams.get("kind")).toBe("manhwa,manhua");
+  expect(url.searchParams.get("demographic")).toBe("seinen");
+  expect(url.searchParams.get("tag")).toBe("Action,Fantasy");
+  expect(url.searchParams.get("match")).toBe("any");
+  expect(url.searchParams.get("without")).toBe("Horror");
+  expect(url.searchParams.get("year")).toBe("2020");
+
+  await expect.poll(() => calls.some((u) => u.searchParams.get("genreMode") === "or" && u.searchParams.get("year") === "2020")).toBe(true);
+  const last = calls.findLast((u) => u.searchParams.get("year") === "2020")!;
+  expect(last.searchParams.getAll("status")).toEqual(["ongoing", "hiatus"]);
+  expect(last.searchParams.getAll("format")).toEqual(["manhwa", "manhua"]);
+  expect(last.searchParams.getAll("demographic")).toEqual(["seinen"]);
+  expect(last.searchParams.getAll("excludeGenre")).toEqual(["Horror"]);
+
+  // a shared link restores the same state
+  const shared = page.url();
+  await page.goto("/");
+  await page.goto(shared);
+  if (await page.locator(".discover-filters").isVisible()) {
+    await expect(page.locator(".discover-filters").getByRole("radio", { name: "Match any" })).toHaveAttribute("aria-checked", "true");
+    await expect(page.locator(".discover-filters").getByRole("button", { name: "Horror: excluded" })).toBeVisible();
+  }
+  await expect(page.getByLabel("Active filters").getByRole("button", { name: "Remove Seinen" })).toBeVisible();
+  await expect(page.getByText(/titles match|No titles match/).first()).toBeVisible({ timeout: 20_000 });
+  await page.goBack();
+  await expect(page).toHaveURL(/\/$/);
+});
