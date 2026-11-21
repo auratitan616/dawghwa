@@ -1023,3 +1023,42 @@
 [data-reduce-motion] .rd-rate-btn[data-pop] svg {
   animation: none;
 }
+
+/* ============================================================ auto-scroll control
+   A small floating pill: it must stay reachable while the bar is hidden and
+   never cover the middle of a page. */
+.rd-auto {
+  position: fixed;
+  z-index: 41;
+  left: 50%;
+  bottom: calc(var(--safe-bottom) + var(--space-4));
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 4px;
+  border-radius: var(--radius-full);
+  background: var(--rd-bar);
+  border: 1px solid var(--line-strong);
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.28);
+  -webkit-backdrop-filter: saturate(1.4) blur(12px);
+  backdrop-filter: saturate(1.4) blur(12px);
+}
+.rd-auto .icon-btn:disabled { opacity: 0.4; }
+.rd-auto-read {
+  display: grid;
+  min-width: 92px;
+  padding: 0 6px;
+  text-align: center;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  line-height: 1.15;
+}
+.rd-auto-read small {
+  font-size: var(--text-2xs);
+  font-weight: 500;
+  opacity: 0.72;
+}
+.rd-auto[data-state="paused"] .rd-auto-read,
+.rd-auto[data-hold] .rd-auto-read { opacity: 0.8; }
+.rd-auto-row input[type="range"] { width: min(220px, 45vw); accent-color: var(--accent); }
