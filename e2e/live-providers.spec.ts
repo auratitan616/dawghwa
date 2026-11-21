@@ -55,6 +55,18 @@ async function decodedImages(page: Page, n = 1) {
     .toBeGreaterThanOrEqual(n);
 }
 
+/**
+ * Progress is written after the reader settles on a page; poll for it instead
+ * of sleeping a fixed time (which was both slow and flaky on cold CDNs).
+ */
+async function savedProgress(page: Page, match: (p: Prog) => boolean, what: string): Promise<Prog> {
+  let found: Prog | undefined;
+  await expect
+    .poll(async () => (found = (await progress(page)).find(match)) !== undefined, { message: what, timeout: 20_000 })
+    .toBe(true);
+  return found!;
+}
+
 async function openTitle(page: Page, t: { id: string; slug: string }) {
   await page.goto(`/title/mangadex/${t.id}/${t.slug}`);
   await expect(page.locator("[data-chapter-key]").first()).toBeVisible({ timeout: 60_000 });
@@ -88,10 +100,8 @@ test("MangaDex: search, unified list, native reader, real images, progress", asy
   await expect(page).toHaveURL(/\/read\/mangadex\/.+s=mangadex/);
   await decodedImages(page);
   await expect(page.locator(".rd-chapter").getByText(/via MangaDex/)).toBeVisible();
-  await page.waitForTimeout(1500);
-  const p = (await progress(page)).find((x) => x.chapterId.endsWith("/en/s0/ch:1"));
-  expect(p, "progress saved under canonical chapter key").toBeDefined();
-  expect(p!.sourceId).toBe("mangadex");
+  const p = await savedProgress(page, (x) => x.chapterId.endsWith("/en/s0/ch:1"), "progress saved under canonical chapter key");
+  expect(p.sourceId).toBe("mangadex");
   await page.screenshot({ path: "test-results/live-mangadex-reader.png" });
 });
 
@@ -109,9 +119,7 @@ test("Dynasty Reader: search, version picker on the merged title page, native re
   await expect(page).toHaveURL(/s=dynasty-reader/);
   await decodedImages(page);
   await expect(page.locator(".rd-chapter").getByText(/via Dynasty/)).toBeVisible();
-  await page.waitForTimeout(1500);
-  const p = (await progress(page)).find((x) => x.chapterId.endsWith("/en/s0/ch:1"));
-  expect(p?.sourceId).toBe("dynasty-reader");
+  await savedProgress(page, (x) => x.chapterId.endsWith("/en/s0/ch:1") && x.sourceId === "dynasty-reader", "Dynasty progress saved for chapter 1");
   await page.screenshot({ path: "test-results/live-dynasty-reader.png" });
 });
 
@@ -132,9 +140,7 @@ test("WEBTOON: search, unified list, native reader (long strip), progress", asyn
   await expect(page).toHaveURL(/s=webtoon/);
   await decodedImages(page, 2); // long strip: several pages decode at once
   await expect(page.locator(".rd-chapter").getByText(/via WEBTOON/i)).toBeVisible();
-  await page.waitForTimeout(1500);
-  const p = (await progress(page)).find((x) => x.sourceId === "webtoon");
-  expect(p, "WEBTOON progress saved").toBeDefined();
+  await savedProgress(page, (x) => x.sourceId === "webtoon", "WEBTOON progress saved");
   await page.screenshot({ path: "test-results/live-webtoon-reader.png" });
 });
 
@@ -178,4 +184,52 @@ test("fallback: MangaDex page request fails -> same chapter, same language on Dy
   await page.screenshot({ path: "test-results/live-fallback.png" });
   await expect.poll(() => reports.length).toBeGreaterThan(0);
   expect(JSON.stringify(reports[0])).toContain("mangadex");
+});
+
+const RAGNAROK = { id: "c3ea5ce6-f659-4fe9-95b6-520cec9fcb13", slug: "solo-leveling-ragnarok" };
+
+test("Asura Scans: linked on the unified title page, native reader, real images, progress", async ({ page }) => {
+  await search(page, "asurascan", "Solo Leveling: Ragnarok", /ragnarok/i);
+  await openTitle(page, RAGNAROK);
+  // exactly chapter 1: a "1" filter also matches 10, 11, 21..., so match the key suffix
+  await page.getByLabel("Find chapter").fill("1");
+  const rows = page.locator('[data-chapter-key$="/ch:1"]');
+  await expect(rows.first()).toBeVisible({ timeout: 30_000 });
+  const row = rows.first();
+  const key = (await row.getAttribute("data-chapter-key"))!;
+  const versions = row.getByRole("button", { name: /Choose version of/ });
+  if (await versions.count()) {
+    await versions.click();
+    await page.getByRole("dialog").getByRole("link", { name: /Asura/ }).first().click();
+  } else {
+    await row.getByRole("link").first().click();
+  }
+  await expect(page).toHaveURL(/\/read\/.+s=asurascan/);
+  await decodedImages(page, 2);
+  await expect(page.locator(".rd-chapter").getByText(/via AsuraScan/)).toBeVisible();
+  // images are relayed by the API, never loaded from the provider by the browser
+  const srcs = await page.locator(".rd-page img").evaluateAll((els) => els.map((e) => (e as HTMLImageElement).currentSrc || (e as HTMLImageElement).src));
+  expect(srcs.every((s) => s.includes("/api/image") && s.includes("source=asurascan"))).toBe(true);
+  await savedProgress(page, (x) => x.sourceId === "asurascan" && x.chapterId === key, `Asura progress saved for ${key}`);
+  await page.screenshot({ path: "test-results/live-asura-reader.png" });
+});
+
+test("Scanlation site from 'Search all sources': provider title page, native reader, progress", async ({ page }) => {
+  await page.goto("/search?q=ragnarok");
+  await page.getByRole("button", { name: "Search all sources" }).click();
+  const block = page.locator(".list").filter({ has: page.locator(".eyebrow", { hasText: /^Thunderscans ·/ }) });
+  await expect(block.locator("a.list-item").first()).toBeVisible({ timeout: 120_000 });
+  // pick the intended series by name, and require it to be unambiguous, rather than whatever ranks first
+  const hit = block.locator("a.list-item").filter({ hasText: /solo leveling:?\s*ragnarok/i });
+  await expect(hit, "exactly one Thunderscans result for Solo Leveling: Ragnarok").toHaveCount(1);
+  await hit.click();
+  await expect(page).toHaveURL(/\/title\/thunderscans\//);
+  const row = page.locator("[data-chapter-key]").first();
+  await expect(row).toBeVisible({ timeout: 60_000 });
+  const key = (await row.getAttribute("data-chapter-key"))!;
+  await row.getByRole("link").first().click();
+  await expect(page).toHaveURL(/\/read\/thunderscans\//);
+  await decodedImages(page, 2);
+  await savedProgress(page, (x) => x.chapterId === key && (x.sourceId === "thunderscans" || Boolean(x.titleKey?.startsWith("thunderscans"))), `Thunderscans progress saved for ${key}`);
+  await page.screenshot({ path: "test-results/live-thunderscans-reader.png" });
 });
