@@ -1,9 +1,15 @@
 import { expect, type BrowserContext, type Page } from "@playwright/test";
 
+/** First visit: pass the landing page the way a visitor does ("Use in browser"). */
+export async function enterApp(page: Page) {
+  await page.goto("/");
+  await page.getByRole("button", { name: "Use in browser" }).click();
+  await expect(page).toHaveURL(/\/welcome/);
+}
+
 /** Skip the onboarding flow (it is shown once per new profile). */
 export async function skipOnboarding(page: Page) {
-  await page.goto("/");
-  await expect(page).toHaveURL(/\/welcome/);
+  await enterApp(page);
   await page.getByRole("button", { name: "Skip" }).click();
   await expect(page).toHaveURL(/\/$/);
 }

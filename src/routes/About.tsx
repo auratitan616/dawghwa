@@ -1,4 +1,5 @@
 import { useHead } from "@/lib/seo";
+import { Link } from "react-router-dom";
 import { Brand } from "@/components/Brand";
 
 export default function About() {
@@ -8,6 +9,9 @@ export default function About() {
       <Brand />
       <h1 style={{ marginTop: 16 }}>About Dawghwa</h1>
       <p>Dawghwa helps you find and read manga, manhwa, manhua and webtoons. Recommendations are learned on your device from what you read, save and hide. No account is needed and no reading data leaves your device.</p>
+      <p>
+        <Link to="/start">Install Dawghwa or share its front page</Link>
+      </p>
       <h2>Where content comes from</h2>
       <p>
         Dawghwa doesn't host any comics. Catalogue data, covers and chapters come from the sources connected to the Dawghwa API. Reading inside the app is offered only for sources that provide chapter pages through the API, currently{" "}
