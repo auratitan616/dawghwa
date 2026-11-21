@@ -56,7 +56,10 @@ export async function fetchBrowse(q: BrowseQuery, signal?: AbortSignal) {
   const res = await api.browse({ source: BROWSE_SOURCE, ...q }, { signal });
   const items = toTitles(res.items, res.sourceId, res.source);
   void cacheTitles(items);
-  return { items, total: res.total, hasMore: res.pagination.hasMore, offset: res.pagination.offset };
+  // `next` advances by what the server returned, not by what survived local
+  // filtering/deduping, so "load more" never re-requests the same page.
+  const filteredLocally = (res as { filteredLocally?: number }).filteredLocally ?? 0;
+  return { items, total: res.total, hasMore: res.pagination.hasMore, offset: res.pagination.offset, next: res.pagination.offset + res.pagination.returned, filteredLocally };
 }
 
 export function useBrowse(q: BrowseQuery | null, opts: { staleTime?: number } = {}) {
@@ -69,13 +72,18 @@ export function useBrowse(q: BrowseQuery | null, opts: { staleTime?: number } = 
   });
 }
 
+/** Next page offset for infinite browse; undefined when done or when the server made no progress. */
+export function nextBrowseOffset(last: { hasMore: boolean; offset: number; next: number }): number | undefined {
+  return last.hasMore && last.next > last.offset ? last.next : undefined;
+}
+
 export function useBrowseInfinite(q: BrowseQuery | null, pageSize = 30) {
   return useInfiniteQuery({
     queryKey: ["browse-inf", JSON.stringify(q), pageSize],
     enabled: Boolean(q),
     initialPageParam: 0,
     queryFn: ({ pageParam, signal }) => fetchBrowse({ ...q!, offset: pageParam, limit: pageSize }, signal),
-    getNextPageParam: (last) => (last.hasMore ? last.offset + last.items.length : undefined),
+    getNextPageParam: nextBrowseOffset,
     staleTime: 15 * 60_000,
   });
 }
