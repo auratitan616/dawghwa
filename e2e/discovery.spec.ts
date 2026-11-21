@@ -72,6 +72,9 @@ test("advanced filters live in the URL, survive reload/back, and reach the API a
     await page.getByRole("button", { name: /^Filters/ }).click();
     panel = page.getByRole("dialog");
   }
+  // Format and status chips are single-choice until the server's capabilities arrive
+  // (then they combine); demographic chips render with them, so wait for one first.
+  await expect(panel.getByRole("button", { name: "Seinen", exact: true })).toBeVisible({ timeout: 30_000 });
   await panel.getByRole("button", { name: "Ongoing", exact: true }).click();
   await panel.getByRole("button", { name: "Hiatus", exact: true }).click();
   await panel.getByRole("button", { name: "Manhwa", exact: true }).click();
