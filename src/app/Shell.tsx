@@ -35,6 +35,7 @@ export function Shell() {
   const online = useOnline();
   const health = useApiHealth();
   const update = useSyncExternalStore(updateReady.subscribe, updateReady.get, updateReady.get);
+  const profile = useUser((s) => s.profile);
   const { rewards } = useSettings();
   const NAV = navItems(rewards);
   const ready = useUser((s) => s.ready);
@@ -55,7 +56,7 @@ export function Shell() {
     return () => window.removeEventListener("keydown", key);
   }, [nav]);
   const immersive = loc.pathname.startsWith("/title/");
-  const landing = useMemo(() => loc.pathname === "/" && shouldShowLanding(null, loc.search), [loc.key]); // eslint-disable-line react-hooks/exhaustive-deps
+  const landing = useMemo(() => loc.pathname === "/" && shouldShowLanding(profile, loc.search), [loc.key]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (!landing) markEntered();
   }, [landing]);
@@ -65,7 +66,7 @@ export function Shell() {
   return (
     <div className="shell" data-own-chrome={immersive || undefined} style={{ display: "block" }}>
       <a className="skip-link" href="#main">Skip to content</a>
-      <div className="main" style={{ gridColumn: "1 / -1" }}>
+      <div className="main">
         {!online ? (
           <div className="banner banner-warn" role="status">
             <WifiOff size={16} /> You're offline. Library, history and saved data still work; new content will load when you reconnect.
