@@ -1,4 +1,4 @@
-import { useEffect, useSyncExternalStore } from "react";
+import { lazy, Suspense, useEffect, useMemo, useSyncExternalStore } from "react";
 import {
   NavLink,
   Outlet,
@@ -29,6 +29,9 @@ import { useUser } from "@/lib/store/user";
 import { useSignInRequired } from "@/lib/store/accounts";
 import { SignIn } from "@/components/SignIn";
 import { updateReady, applyUpdate } from "./pwa";
+import { markEntered, shouldShowLanding } from "./landing";
+
+const Landing = lazy(() => import("@/routes/Landing"));
 
 type NavItem = { to: string; label: string; icon: typeof Home; end?: boolean; aria?: string };
 const HOME: NavItem = { to: "/", label: "Home", icon: Home, end: true };
@@ -86,7 +89,23 @@ export function Shell() {
   }, [nav]);
   // Title pages bring their own header and sticky read button on phones (blueprint), so the shell steps aside there.
   const immersive = loc.pathname.startsWith("/title/");
+  // Decided once per location: leaving the landing sets the "entered" flag before the
+  // router finishes loading the next screen, and a re-render of "/" in between must not
+  // swap in Home (whose onboarding redirect would drop the hand-off query).
+  const landing = useMemo(() => loc.pathname === "/" && shouldShowLanding(profile, loc.search), [loc.key]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Anyone who has reached a screen inside the app (a deep link, /welcome, a shared
+  // title) has entered it; the landing is only for a first visit to the bare root.
+  useEffect(() => {
+    if (!landing) markEntered();
+  }, [landing]);
   if (locked) return <SignIn />;
+  // First-time web visitors meet the landing page at "/" (src/app/landing.ts).
+  if (landing)
+    return (
+      <Suspense fallback={null}>
+        <Landing />
+      </Suspense>
+    );
   return (
     <div className="shell" data-own-chrome={immersive || undefined}>
       <a className="skip-link" href="#main">

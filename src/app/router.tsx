@@ -27,6 +27,7 @@ export const routes: RouteObject[] = [
   },
   // full-screen routes without the shell
   { path: "/read/:source/:id/:chapterId", lazy: lazy(() => import("@/routes/Reader")), errorElement: <RouteError /> },
+  { path: "/start", lazy: lazy(() => import("@/routes/Landing")), errorElement: <RouteError /> },
   { path: "/welcome", lazy: lazy(() => import("@/routes/Onboarding")), errorElement: <RouteError /> },
 ];
 

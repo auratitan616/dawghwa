@@ -10,6 +10,7 @@ import "./styles/app.css";
 import "./styles/reader.css";
 import { router } from "./app/router";
 import { registerPwa } from "./app/pwa";
+import { captureInstallPrompt } from "./app/install";
 import { queryClient, persister, PERSIST_MAX_AGE, shouldPersist } from "./lib/query";
 import { initUser } from "./lib/store/user";
 import { startIntel } from "./lib/intel/runtime";
@@ -18,6 +19,8 @@ import { initPlatform } from "./lib/platform";
 import { storageReady } from "./lib/store/db";
 
 applyTheme();
+// before anything awaits: Chromium fires beforeinstallprompt early and only once
+captureInstallPrompt();
 
 async function boot() {
   await storageReady();

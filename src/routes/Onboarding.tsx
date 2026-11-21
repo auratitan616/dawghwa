@@ -52,10 +52,12 @@ function OnboardingFlow() {
   const vocab = useVocabulary();
   const order: Step[] = editing ? ["genres", "formats", "avoid"] : fresh ? ["reader", "genres", "formats", "avoid", "ready"] : ["hello", "reader", "genres", "formats", "avoid", "ready"];
   const [step, setStep] = useState(0);
-  const [kinds, setKinds] = useState<string[]>(profile?.prefs.kinds ?? []);
+  // the landing page's "Name your reader" fragment hands over a name and a format
+  const handedKind = params.get("kind");
+  const [kinds, setKinds] = useState<string[]>(profile?.prefs.kinds?.length ? profile.prefs.kinds : handedKind && FORMATS.some(([k]) => k === handedKind) ? [handedKind] : []);
   const [genres, setGenres] = useState<string[]>(profile?.prefs.genres ?? []);
   const [avoid, setAvoid] = useState<string[]>(profile?.prefs.avoid ?? []);
-  const [name, setName] = useState(profile && profile.name !== "Reader" ? profile.name : "");
+  const [name, setName] = useState(profile && profile.name !== "Reader" ? profile.name : (params.get("name") ?? "").trim().slice(0, 40));
   const [color, setColor] = useState(profile?.color ?? PROFILE_COLORS[0]!);
   const [usePin, setUsePin] = useState(false);
   const [pin, setPinValue] = useState("");

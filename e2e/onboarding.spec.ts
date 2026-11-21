@@ -1,11 +1,10 @@
 import { expect, test } from "@playwright/test";
-import { maybeRelay } from "./helpers";
+import { enterApp, maybeRelay } from "./helpers";
 
 test.beforeEach(async ({ context }) => maybeRelay(context));
 
 test("mascot onboarding creates a reader with a PIN and ends on the first quest", async ({ page }) => {
-  await page.goto("/");
-  await expect(page).toHaveURL(/\/welcome/);
+  await enterApp(page);
   await expect(page.locator(".onboard .bubble")).toContainText("reading buddy");
   await page.getByRole("button", { name: "Create reader" }).click();
 
@@ -44,7 +43,7 @@ test("mascot onboarding creates a reader with a PIN and ends on the first quest"
 });
 
 test("edit mode keeps only the taste steps and Cancel returns to Profile", async ({ page }) => {
-  await page.goto("/");
+  await enterApp(page);
   await page.getByRole("button", { name: "Skip" }).click();
   await page.goto("/welcome?edit=1");
   await expect(page.getByRole("button", { name: "Create reader" })).toHaveCount(0);
