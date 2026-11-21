@@ -64,8 +64,10 @@ test("advanced filters live in the URL, survive reload/back, and reach the API a
     if (u.pathname === "/api/catalog") calls.push(u);
   });
   await page.goto("/discover?view=all");
-  const scope = page.locator(".discover-filters").isVisible().then((v) => (v ? page.locator(".discover-filters") : null));
-  let panel = await scope;
+  // Desktop shows the panel inline, phones open it from a button. Wait for one of them before choosing.
+  const inline = page.locator(".discover-filters");
+  await expect(inline.or(page.getByRole("button", { name: /^Filters/ })).first()).toBeVisible();
+  let panel = (await inline.isVisible()) ? inline : null;
   if (!panel) {
     await page.getByRole("button", { name: /^Filters/ }).click();
     panel = page.getByRole("dialog");
