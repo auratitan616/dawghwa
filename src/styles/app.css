@@ -2391,6 +2391,7 @@ span.chip-neg {
   overflow: hidden;
 }
 .filter-hint { font-size: var(--text-xs); margin: 0; }
+.discover-coverage { font-size: var(--text-xs); margin: 0 0 var(--space-4); max-width: 72ch; }
 
 /* ============================================================ discover hub */
 .hub-head {

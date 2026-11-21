@@ -190,7 +190,9 @@ function Featured({ ctx, claims }: { ctx: RankContext; claims: Claims }) {
   if (q.data && !items.length) return null;
   if (!items.length)
     return (
-      <div className="hero hero-loading" aria-busy="true" aria-label="Loading featured series">
+      // role="status" makes the label valid (aria-label is prohibited on a bare div)
+      // and announces the loading state politely.
+      <div className="hero hero-loading" role="status" aria-busy="true" aria-label="Loading featured series">
         <div className="hero-slide skeleton" />
       </div>
     );

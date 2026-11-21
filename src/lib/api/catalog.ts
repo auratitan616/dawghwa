@@ -12,9 +12,13 @@ import type { BrowseOrder, BrowseQuery, BrowseResponse, BrowseVocabulary, MangaK
  * reader uses for chapters and pages.
  *
  * What the API applies vs. what is applied here (transparently, see
- * `localOnly`): one format and one status per request are server filters;
- * several formats/statuses, and demographic, are filtered on this device over
- * the returned page.
+ * `localOnly`): the API advertises its filters in `capabilities.filters`.
+ * When it lists `formats`, `statuses` and `demographics`, several formats,
+ * several statuses and demographics are server filters. Against an older API
+ * that only knows single values they are filtered on this device over the
+ * returned page (reported as `filteredLocally`). "Match any tag" needs the
+ * server's `genreMode` filter; without it the request is refused, never
+ * silently sent as "match all".
  */
 
 export const CATALOG_PROVIDER = "mangadex";
@@ -49,7 +53,7 @@ export interface CatalogResponse {
 
 export interface CatalogFilters {
   provider: string;
-  capabilities: { filters: string[]; sorts: string[]; formats: string[]; statuses: string[]; maxLimit: number; maxDepth?: number };
+  capabilities: { filters: string[]; sorts: string[]; formats: string[]; statuses: string[]; demographics?: string[]; maxLimit: number; maxDepth?: number };
   genres: string[];
   tags: { name: string; group?: string; adult?: boolean }[];
 }
@@ -107,17 +111,29 @@ export function catalogFilters(o: Opt = {}): Promise<CatalogFilters> {
   });
 }
 
+/** Server-side filters the catalogue advertises. Exported for tests. */
+export type ServerFilters = ReadonlySet<string>;
+const NONE: ServerFilters = new Set();
+
 /** Which parts of a query the catalogue cannot apply (applied locally by `browseCatalog`). */
-export function localOnly(q: BrowseQuery): string[] {
+export function localOnly(q: BrowseQuery, server: ServerFilters = NONE): string[] {
   const out: string[] = [];
-  if ((q.kinds?.length ?? 0) > 1) out.push("kinds");
-  if ((q.status?.length ?? 0) > 1) out.push("status");
-  if (q.demographic?.length) out.push("demographic");
+  if ((q.kinds?.length ?? 0) > 1 && !server.has("formats")) out.push("kinds");
+  if ((q.status?.length ?? 0) > 1 && !server.has("statuses")) out.push("status");
+  if (q.demographic?.length && !server.has("demographics")) out.push("demographic");
   return out;
 }
 
+export class UnsupportedFilterError extends Error {
+  readonly code = "VALIDATION_ERROR";
+  constructor(readonly filter: string) {
+    super(`The catalogue cannot apply "${filter}" right now. Remove it to keep browsing.`);
+    this.name = "UnsupportedFilterError";
+  }
+}
+
 /** Translate to `/api/catalog` search params. Exported for tests. */
-export function toCatalogParams(q: BrowseQuery, genres: Set<string>): URLSearchParams {
+export function toCatalogParams(q: BrowseQuery, genres: Set<string>, server: ServerFilters = NONE): URLSearchParams {
   const p = new URLSearchParams({ provider: CATALOG_PROVIDER });
   const limit = Math.max(1, Math.min(100, q.limit ?? 30));
   const offset = Math.max(0, q.offset ?? 0);
@@ -125,10 +141,18 @@ export function toCatalogParams(q: BrowseQuery, genres: Set<string>): URLSearchP
   p.set("page", String(Math.floor(offset / limit) + 1));
   if (q.query) p.set("q", q.query);
   p.set("sort", SORT[q.order ?? (q.query ? "relevance" : "popular")]);
-  if (q.kinds?.length === 1) p.set("format", q.kinds[0]!);
-  if (q.status?.length === 1) p.set("status", q.status[0]!);
+  const kinds = q.kinds ?? [];
+  if (kinds.length === 1 || (kinds.length > 1 && server.has("formats"))) for (const k of kinds) p.append("format", k);
+  const status = q.status ?? [];
+  if (status.length === 1 || (status.length > 1 && server.has("statuses"))) for (const s of status) p.append("status", s);
+  if (server.has("demographics")) for (const d of q.demographic ?? []) p.append("demographic", d);
   if (q.year) p.set("year", String(q.year));
-  for (const t of q.includedTags ?? []) p.append(genres.has(t.toLowerCase()) ? "genre" : "tag", t);
+  const included = q.includedTags ?? [];
+  for (const t of included) p.append(genres.has(t.toLowerCase()) ? "genre" : "tag", t);
+  if (q.tagMode === "any" && included.length > 1) {
+    if (!server.has("genreMode")) throw new UnsupportedFilterError("match any tag");
+    p.set("genreMode", "or");
+  }
   // the catalogue's excludeGenre accepts any MangaDex tag name
   for (const t of q.excludedTags ?? []) p.append("excludeGenre", t);
   return p;
@@ -167,20 +191,23 @@ export function toResult(it: CatalogItem): SearchResult {
   };
 }
 
-function keepLocal(r: SearchResult, q: BrowseQuery): boolean {
+function keepLocal(r: SearchResult, q: BrowseQuery, local: string[]): boolean {
   const m = r.metadata ?? {};
-  if ((q.kinds?.length ?? 0) > 1 && !(m.kind && q.kinds!.includes(m.kind))) return false;
-  if ((q.status?.length ?? 0) > 1 && !(m.status && (q.status as string[]).includes(m.status))) return false;
-  if (q.demographic?.length && !(m.demographic && (q.demographic as string[]).includes(lc(m.demographic)!))) return false;
+  if (local.includes("kinds") && !(m.kind && q.kinds!.includes(m.kind))) return false;
+  if (local.includes("status") && !(m.status && (q.status as string[]).includes(m.status))) return false;
+  if (local.includes("demographic") && !(m.demographic && (q.demographic as string[]).includes(lc(m.demographic)!))) return false;
   return true;
 }
 
 export async function browseCatalog(q: BrowseQuery, o: Opt = {}): Promise<BrowseResponse & { attribution?: CatalogResponse["attribution"]; filteredLocally: number }> {
-  const genres = new Set((await catalogFilters(o)).genres.map((g) => g.toLowerCase()));
-  const params = toCatalogParams(q, genres);
+  const f = await catalogFilters(o);
+  const genres = new Set(f.genres.map((g) => g.toLowerCase()));
+  const server: ServerFilters = new Set(f.capabilities.filters);
+  const params = toCatalogParams(q, genres, server);
   const res = await request<CatalogResponse>(`/api/catalog?${params}`, { signal: o.signal, timeoutMs: 20_000 });
   const all = res.items.map(toResult);
-  const items = localOnly(q).length ? all.filter((r) => keepLocal(r, q)) : all;
+  const local = localOnly(q, server);
+  const items = local.length ? all.filter((r) => keepLocal(r, q, local)) : all;
   const limit = Number(params.get("limit"));
   const offset = (res.pageInfo.page - 1) * limit;
   const total = res.pageInfo.total ?? offset + all.length;
@@ -204,9 +231,15 @@ export async function catalogVocabulary(o: Opt = {}): Promise<BrowseVocabulary> 
     tags: [...f.genres.map((name) => ({ name, group: "genre" })), ...f.tags.map((t) => ({ name: t.name, group: t.group ?? "theme" }))],
     kinds: KINDS.filter((k) => f.capabilities.formats.includes(k)),
     status: f.capabilities.statuses,
-    // the catalogue has no demographic filter
-    demographic: [],
+    // only offered when the server can filter by it; never a page-local guess
+    demographic: f.capabilities.filters.includes("demographics") ? (f.capabilities.demographics ?? []) : [],
     orders: f.capabilities.sorts.map((s) => ORDER_FROM_SORT[s]).filter((x): x is BrowseOrder => Boolean(x)),
+    server: {
+      multiKind: f.capabilities.filters.includes("formats"),
+      multiStatus: f.capabilities.filters.includes("statuses"),
+      demographic: f.capabilities.filters.includes("demographics"),
+      tagMode: f.capabilities.filters.includes("genreMode"),
+    },
     maxOffset: f.capabilities.maxDepth ?? 10_000,
     maxLimit: f.capabilities.maxLimit,
   };
