@@ -1054,7 +1054,9 @@
   font-weight: 600;
   line-height: 1.15;
 }
+.rd-auto-speed { white-space: nowrap; }
 .rd-auto-read small {
+  white-space: nowrap;
   font-size: var(--text-2xs);
   font-weight: 500;
   opacity: 0.72;

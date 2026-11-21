@@ -999,7 +999,9 @@ function ReaderView() {
             <Minus size={18} />
           </button>
           <span className="rd-auto-read tabular">
-            <span data-testid="auto-speed">{settings.autoScrollSpeed}</span> px/s
+            <span className="rd-auto-speed">
+              <span data-testid="auto-speed">{settings.autoScrollSpeed}</span> px/s
+            </span>
             <small role="status" aria-live="polite">{autoStatus}</small>
           </span>
           <button className="icon-btn" aria-label="Faster" disabled={settings.autoScrollSpeed >= AUTO_SCROLL_SPEEDS[AUTO_SCROLL_SPEEDS.length - 1]!} onClick={() => setAutoSpeed(1)}>
