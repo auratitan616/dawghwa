@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
-import { ArrowLeft, Bookmark as BookmarkIcon, BookmarkCheck, Check, ChevronLeft, ChevronRight, ListOrdered, Maximize2, MessageCircle, Minimize2, RotateCw, Settings2, ThumbsDown, ThumbsUp, X, ZoomOut } from "lucide-react";
+import { ArrowLeft, Bookmark as BookmarkIcon, BookmarkCheck, Check, ChevronLeft, ChevronRight, ListOrdered, Maximize2, MessageCircle, Minimize2, Minus, Pause, Play, Plus, RotateCw, Settings2, ThumbsDown, ThumbsUp, X, ZoomOut } from "lucide-react";
 import { Mascot } from "@/components/Mascot";
 import { ChapterNo } from "@/components/Editorial";
 import { Sheet } from "@/components/Layer";
@@ -13,6 +13,7 @@ import { ErrorState, errorText } from "@/components/States";
 import { useChapters, usePages, useSources, useTitle } from "@/lib/query";
 import { reducedMotion, updateSettings, useSettings, type Settings } from "@/lib/settings";
 import { clamp, useAutoHideBar, useStripZoom } from "@/lib/readerGestures";
+import { AUTO_SCROLL_SPEEDS, nudgeSpeed, useAutoScroll } from "@/lib/autoScroll";
 import { relativeTime } from "@/lib/time";
 import { rate, saveProgress, useUser } from "@/lib/store/user";
 import { useSignInRequired } from "@/lib/store/accounts";
@@ -425,6 +426,23 @@ function ReaderView() {
   const [barFocus, setBarFocus] = useState(false);
   const wide = useWide();
   const barHidden = bar.hidden && count > 0 && !panel && !chList && !commentsOpen && !endInView && !barFocus;
+
+  // auto-scroll: off by default, started by the reader (bar button or P); never navigates
+  const steps = reducedMotion() || settings.autoScrollMode === "step";
+  const auto = useAutoScroll({
+    enabled: count > 0,
+    blocked: panel || chList || Boolean(commentsOpen) || zoom.zoom > 1,
+    speed: settings.autoScrollSpeed,
+    mode: steps ? "step" : "continuous",
+    endEl: () => document.querySelector<HTMLElement>(".rd-end"),
+    resetKey: `${chapterKey}|${activeVariantId}`,
+    ignoreSelector: ".rd-auto, .rd-auto-btn",
+    onEnd: () => setNotice({ kind: "manual", text: "Auto-scroll stopped at the end of the chapter." }),
+  });
+  const autoOn = auto.state !== "off";
+  const startOrToggleAuto = () => (auto.state === "off" ? auto.start() : auto.toggle());
+  const setAutoSpeed = (dir: 1 | -1) => updateSettings({ autoScrollSpeed: nudgeSpeed(settings.autoScrollSpeed, dir) });
+  const autoStatus = auto.state === "paused" ? "Paused" : auto.hold === "background" ? "Paused in background" : auto.hold === "layer" ? "Paused" : auto.hold === "input" ? "Resumes shortly" : steps ? "Stepping" : "Scrolling";
   useEffect(() => {
     resetZoom();
     bar.setHidden(false);
@@ -605,10 +623,13 @@ function ReaderView() {
       else if (e.key === "[") goChapter(prev);
       else if (e.key === "c" && target) setComments("read");
       else if (e.key === "z" && count) zoomCenter(zoom.zoomRef.current > 1 ? 1 : 2);
+      else if ((e.key === "p" || e.key === "P") && count && !e.metaKey && !e.ctrlKey && !e.altKey) startOrToggleAuto();
+      else if ((e.key === "-" || e.key === "_") && autoOn) setAutoSpeed(-1);
+      else if ((e.key === "=" || e.key === "+") && autoOn) setAutoSpeed(1);
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [goChapter, next, prev, panel, chList, commentsOpen, target, setComments, count]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [goChapter, next, prev, panel, chList, commentsOpen, target, setComments, count, auto.state, settings.autoScrollSpeed]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Android back / Escape: close a layer, then leave to the title page
   useEffect(
@@ -854,6 +875,11 @@ function ReaderView() {
             {marked ? <BookmarkCheck size={20} /> : <BookmarkIcon size={20} />}
           </button>
         )}
+        {count > 0 && (
+          <button className="icon-btn rd-auto-btn" aria-label={auto.state === "running" ? "Pause auto-scroll" : auto.state === "paused" ? "Resume auto-scroll" : "Start auto-scroll"} aria-pressed={auto.state === "running"} title="Auto-scroll (P)" onClick={startOrToggleAuto}>
+            {auto.state === "running" ? <Pause size={20} /> : <Play size={20} />}
+          </button>
+        )}
         <button className="icon-btn" aria-label="Reader settings" aria-haspopup="dialog" onClick={() => setPanel(true)}>
           <Settings2 size={20} />
         </button>
@@ -964,8 +990,59 @@ function ReaderView() {
           })}
         </ol>
       </Sheet>
+      {autoOn && (
+        <div className="rd-auto" role="group" aria-label="Auto-scroll" data-state={auto.state} data-hold={auto.hold ?? undefined}>
+          <button className="icon-btn" aria-label={auto.state === "running" ? "Pause auto-scroll" : "Resume auto-scroll"} onClick={auto.toggle}>
+            {auto.state === "running" ? <Pause size={18} /> : <Play size={18} />}
+          </button>
+          <button className="icon-btn" aria-label="Slower" disabled={settings.autoScrollSpeed <= AUTO_SCROLL_SPEEDS[0]} onClick={() => setAutoSpeed(-1)}>
+            <Minus size={18} />
+          </button>
+          <span className="rd-auto-read tabular">
+            <span className="rd-auto-speed">
+              <span data-testid="auto-speed">{settings.autoScrollSpeed}</span> px/s
+            </span>
+            <small role="status" aria-live="polite">{autoStatus}</small>
+          </span>
+          <button className="icon-btn" aria-label="Faster" disabled={settings.autoScrollSpeed >= AUTO_SCROLL_SPEEDS[AUTO_SCROLL_SPEEDS.length - 1]!} onClick={() => setAutoSpeed(1)}>
+            <Plus size={18} />
+          </button>
+          <button className="icon-btn" aria-label="Stop auto-scroll" onClick={auto.stop}>
+            <X size={18} />
+          </button>
+        </div>
+      )}
       <Sheet open={panel} onClose={() => setPanel(false)} title="Reader settings">
         <div className="stack">
+          <div className="settings-row rd-auto-row">
+            <label htmlFor="rd-auto-speed">
+              Auto-scroll speed
+              <small className="muted" style={{ display: "block" }}>
+                {settings.autoScrollSpeed} px/s. Press P to start or pause, − and + to change speed.
+              </small>
+            </label>
+            <input
+              id="rd-auto-speed"
+              type="range"
+              min={0}
+              max={AUTO_SCROLL_SPEEDS.length - 1}
+              step={1}
+              value={Math.max(0, AUTO_SCROLL_SPEEDS.findIndex((v) => v >= settings.autoScrollSpeed))}
+              aria-valuetext={`${settings.autoScrollSpeed} pixels per second`}
+              onChange={(e) => updateSettings({ autoScrollSpeed: AUTO_SCROLL_SPEEDS[Number(e.target.value)] ?? 80 })}
+            />
+          </div>
+          <div className="settings-row">
+            <span>
+              Auto-scroll motion
+              {reducedMotion() && (
+                <small className="muted" style={{ display: "block" }}>
+                  Reduce motion is on, so auto-scroll moves a screen at a time.
+                </small>
+              )}
+            </span>
+            <Segmented label="Auto-scroll motion" value={steps ? "step" : "continuous"} options={[["continuous", "Glide"], ["step", "Screen by screen"]]} onChange={(v) => updateSettings({ autoScrollMode: v })} />
+          </div>
           <label className="switch settings-row">
             <span>Continue to next chapter automatically</span>
             <input type="checkbox" checked={settings.autoNext} onChange={(e) => updateSettings({ autoNext: e.target.checked })} />

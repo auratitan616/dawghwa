@@ -247,6 +247,8 @@ export interface BrowseQuery {
   kinds?: MangaKind[];
   status?: ("ongoing" | "completed" | "hiatus" | "cancelled")[];
   demographic?: ("shounen" | "shoujo" | "seinen" | "josei" | "none")[];
+  /** How included tags combine. Default "all". */
+  tagMode?: "all" | "any";
   year?: number;
   order?: BrowseOrder;
   offset?: number;
@@ -270,6 +272,8 @@ export interface BrowseVocabulary {
   status: string[];
   demographic: string[];
   orders: BrowseOrder[];
+  /** Filters the server applies with several values / modes (others are applied on this device or not offered). */
+  server: { multiKind: boolean; multiStatus: boolean; demographic: boolean; tagMode: boolean };
   maxOffset: number;
   maxLimit: number;
 }

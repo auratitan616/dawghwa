@@ -6,6 +6,7 @@ import { DiscoverHub } from "./DiscoverHub";
 import { TitleGrid } from "@/components/Grid";
 import { EmptyState, ErrorState, GridSkeleton } from "@/components/States";
 import { Sheet } from "@/components/Layer";
+import { Segmented } from "@/components/Segmented";
 import { useBrowseInfinite, useVocabulary } from "@/lib/query";
 import { useHead } from "@/lib/seo";
 import { useRankContext } from "@/lib/feed/context";
@@ -27,11 +28,18 @@ const ORDERS: [BrowseOrder, string][] = [
 const cap = (s: string) => s[0]!.toUpperCase() + s.slice(1);
 const TAG_GROUP_LABELS: Record<string, string> = { genre: "Genres", theme: "Themes", format: "Style & format tags", content: "Content tags" };
 const list = (p: URLSearchParams, k: string) => (p.get(k) ?? "").split(",").filter(Boolean);
+const DEMO_LABELS: Record<string, string> = { shounen: "Shounen", shoujo: "Shoujo", seinen: "Seinen", josei: "Josei", none: "No demographic" };
+const YEARS_BACK = 60;
 
 /**
- * Catalogue browser over GET /api/catalog. Every control maps to a server-side
- * catalogue filter: one format, one status, a release year, included tags and
- * excluded tags. The catalogue has no demographic filter, so there is none here.
+ * Catalogue browser over GET /api/catalog. Every control maps to a catalogue
+ * filter and lives in the URL (shareable, back/forward safe):
+ *   kind, status, demographic  comma lists (several values match any)
+ *   tag, without               included / excluded tags
+ *   match=any                  included tags match any instead of all
+ *   year, order
+ * Multi-value controls and demographic/match-any only appear when the API
+ * advertises them (vocab.server); otherwise format/status are single-choice.
  *
  * With no filters set it shows the editorial hub instead.
  */
@@ -53,13 +61,24 @@ function Catalogue() {
   const status = list(params, "status") as BrowseQuery["status"] & string[];
   const tags = list(params, "tag");
   const without = list(params, "without");
+  const demographic = list(params, "demographic") as NonNullable<BrowseQuery["demographic"]>;
+  const tagMode: "all" | "any" = params.get("match") === "any" ? "any" : "all";
   const order = (params.get("order") as BrowseOrder) || "popular";
   const THIS_YEAR = new Date().getFullYear();
   const year = Number(params.get("year")) || undefined;
   useHead({ title: "Discover manga, manhwa and manhua", path: "/discover", description: "Browse manga, manhwa and manhua by genre, theme, status and format." });
 
   const query: BrowseQuery = useMemo(
-    () => ({ kinds: kinds.length ? kinds : undefined, status: status.length ? status : undefined, includedTags: tags.length ? tags : undefined, excludedTags: without.length ? without : undefined, order, year }),
+    () => ({
+      kinds: kinds.length ? kinds : undefined,
+      status: status.length ? status : undefined,
+      demographic: demographic.length ? demographic : undefined,
+      includedTags: tags.length ? tags : undefined,
+      tagMode: tagMode === "any" && tags.length > 1 ? tagMode : undefined,
+      excludedTags: without.length ? without : undefined,
+      order,
+      year,
+    }),
     [params], // eslint-disable-line react-hooks/exhaustive-deps
   );
   const q = useBrowseInfinite(query, 30);
@@ -68,6 +87,9 @@ function Catalogue() {
     return (q.data?.pages ?? []).flatMap((p) => p.items).filter((t) => !ctx.exclude?.has(t.key) && !seen.has(t.key) && seen.add(t.key));
   }, [q.data, ctx.exclude]);
   const total = q.data?.pages[0]?.total;
+  const approx = (q.data?.pages ?? []).some((p) => p.filteredLocally > 0);
+  const server = vocab.data?.server;
+  const maxOffset = vocab.data?.maxOffset ?? 10_000;
 
   const setOne = (k: string, v?: string) => {
     const p = new URLSearchParams(params);
@@ -80,10 +102,14 @@ function Catalogue() {
     for (const t of vocab.data?.tags ?? []) if (t.group !== "content") g.set(t.group, [...(g.get(t.group) ?? []), t.name]);
     return [...g.entries()].map(([k, v]) => [k, v.sort()] as const);
   }, [vocab.data]);
-  const active = kinds.length + status.length + tags.length + without.length + (year ? 1 : 0);
+  const active = kinds.length + status.length + demographic.length + tags.length + without.length + (year ? 1 : 0);
   const drop = (k: string, v: string) => setOne(k, list(params, k).filter((x) => x !== v).join(",") || undefined);
-  // the catalogue filters one format and one status at a time
-  const pick = (k: string, v: string) => setOne(k, list(params, k).length === 1 && list(params, k)[0] === v ? undefined : v);
+  // several values when the server can OR them; otherwise one at a time
+  const pick = (k: string, v: string, multi = false) => {
+    const cur = list(params, k);
+    if (multi) return setOne(k, (cur.includes(v) ? cur.filter((x) => x !== v) : [...cur, v]).join(",") || undefined);
+    setOne(k, cur.length === 1 && cur[0] === v ? undefined : v);
+  };
   const orderLabel = ORDERS.find(([o]) => o === order)?.[1];
   const heading = active === 1 && tags.length === 1 ? tags[0]! : active === 1 && kinds.length === 1 ? cap(kinds[0]!) : active === 1 && status.length === 1 ? `${cap(status[0]!)} series` : active === 1 && year ? `Published ${year}` : active === 0 ? (order === "popular" ? "Whole catalogue" : orderLabel ?? "Catalogue") : "Filtered catalogue";
 
@@ -108,7 +134,7 @@ function Catalogue() {
         <legend className="eyebrow">Format</legend>
         <div className="chips">
           {KINDS.map(([k, l]) => (
-            <button key={k} className="chip" aria-pressed={kinds.includes(k)} onClick={() => pick("kind", k)}>
+            <button key={k} className="chip" aria-pressed={kinds.includes(k)} onClick={() => pick("kind", k, server?.multiKind)}>
               {l}
             </button>
           ))}
@@ -118,20 +144,42 @@ function Catalogue() {
         <legend className="eyebrow">Status</legend>
         <div className="chips">
           {STATUS.map((s) => (
-            <button key={s} className="chip" aria-pressed={status.includes(s)} onClick={() => pick("status", s)}>
+            <button key={s} className="chip" aria-pressed={status.includes(s)} onClick={() => pick("status", s, server?.multiStatus)}>
               {cap(s)}
             </button>
           ))}
-          <button className="chip" aria-pressed={year === THIS_YEAR} onClick={() => setOne("year", year === THIS_YEAR ? undefined : String(THIS_YEAR))}>
-            Published {THIS_YEAR}
-          </button>
-          {year && year !== THIS_YEAR ? (
-            <button className="chip" aria-pressed onClick={() => setOne("year", undefined)}>
-              Published {year}
-            </button>
-          ) : null}
         </div>
       </fieldset>
+      {(vocab.data?.demographic.length ?? 0) > 0 && (
+        <fieldset>
+          <legend className="eyebrow">Demographic</legend>
+          <div className="chips">
+            {vocab.data!.demographic.map((d) => (
+              <button key={d} className="chip" aria-pressed={demographic.includes(d as never)} onClick={() => pick("demographic", d, true)}>
+                {DEMO_LABELS[d] ?? cap(d)}
+              </button>
+            ))}
+          </div>
+        </fieldset>
+      )}
+      <fieldset>
+        <legend className="eyebrow">Release year</legend>
+        <select className="select" aria-label="Release year" style={{ width: "auto" }} value={year ?? ""} onChange={(e) => setOne("year", e.target.value || undefined)}>
+          <option value="">Any year</option>
+          {Array.from({ length: YEARS_BACK }, (_, i) => THIS_YEAR - i).map((y) => (
+            <option key={y} value={y}>
+              {y}
+            </option>
+          ))}
+          {year && year < THIS_YEAR - YEARS_BACK + 1 ? <option value={year}>{year}</option> : null}
+        </select>
+      </fieldset>
+      {server?.tagMode && (
+        <fieldset>
+          <legend className="eyebrow">Included tags must</legend>
+          <Segmented label="Included tags must" value={tagMode} options={[["all", "Match all"], ["any", "Match any"]]} onChange={(m) => setOne("match", m === "any" ? "any" : undefined)} />
+        </fieldset>
+      )}
       {vocab.isError && <ErrorState error={vocab.error} retry={() => void vocab.refetch()} compact />}
       {tagGroups.length > 0 && <p className="muted filter-hint">Tags: tap once to include, again to exclude, a third time to clear.</p>}
       {tagGroups.map(([group, names]) => (
@@ -161,7 +209,9 @@ function Catalogue() {
       <header className="page-head">
         <div>
           <h1>{heading}</h1>
-          <p className="muted">{total !== undefined ? `${total.toLocaleString()} titles match` : "Browse the MangaDex catalogue"}</p>
+          <p className="muted">
+            {total !== undefined ? `${approx ? "About " : ""}${total.toLocaleString()} titles match` : "Browse the MangaDex catalogue"}
+          </p>
         </div>
         <div className="cluster">
           <select className="select" style={{ width: "auto" }} aria-label="Sort by" value={order} onChange={(e) => setOne("order", e.target.value === "popular" ? undefined : e.target.value)}>
@@ -196,6 +246,16 @@ function Catalogue() {
               {cap(k)} <X size={14} />
             </button>
           ))}
+          {demographic.map((k) => (
+            <button key={k} className="chip is-on" onClick={() => drop("demographic", k)} aria-label={`Remove ${DEMO_LABELS[k] ?? k}`}>
+              {DEMO_LABELS[k] ?? cap(k)} <X size={14} />
+            </button>
+          ))}
+          {tagMode === "any" && tags.length > 1 ? (
+            <button className="chip is-on" onClick={() => setOne("match")} aria-label="Remove match any tag">
+              Any of {tags.length} tags <X size={14} />
+            </button>
+          ) : null}
           {tags.map((k) => (
             <button key={k} className="chip is-on" onClick={() => drop("tag", k)} aria-label={`Remove ${k}`}>
               {k} <X size={14} />
@@ -216,6 +276,10 @@ function Catalogue() {
           </button>
         </div>
       )}
+      <p className="muted discover-coverage">
+        Results come from the MangaDex catalogue{total !== undefined && total > maxOffset ? `; only the first ${maxOffset.toLocaleString()} can be browsed, so narrow the filters to reach the rest` : ""}.
+        {approx ? " Some filters are applied on this device to each loaded page, so the count is approximate." : ""}
+      </p>
       <div className="discover-layout">
         <aside className="discover-filters" aria-label="Filters">
           {filters}
@@ -227,7 +291,7 @@ function Catalogue() {
             <GridSkeleton density={density} />
           ) : !items.length ? (
             <EmptyState title="No titles match these filters" action={<button className="btn" onClick={() => setParams({ view: "all" }, { replace: true })}>Clear filters</button>}>
-              Try removing a filter. Tag combinations must all match.
+              Try removing a filter.{tags.length > 1 ? (tagMode === "any" ? " Titles need at least one included tag." : " Titles need every included tag.") : ""}
             </EmptyState>
           ) : (
             <TitleGrid items={items} context="discover" density={density} hasMore={q.hasNextPage} loadingMore={q.isFetchingNextPage} onMore={() => void q.fetchNextPage()} />
