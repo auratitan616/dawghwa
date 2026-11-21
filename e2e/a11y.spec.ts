@@ -74,3 +74,15 @@ test("rewards off: no quest rings, no level, card without level", async ({ page 
   await page.goto("/profile");
   await expect(page.locator(".level-card")).toHaveCount(0);
 });
+
+// Regression: the home hero's loading state used aria-label on a plain div
+// (axe aria-prohibited-attr). The audit above only caught it when the API was
+// slow; hold the catalogue requests so the loading state is always audited.
+test("axe: home loading state has no serious violations", async ({ page }) => {
+  await page.goto("/welcome");
+  await page.getByRole("button", { name: "Skip" }).click();
+  await page.route("**/api/**", () => new Promise(() => {}));
+  await page.goto("/");
+  await expect(page.locator(".hero-loading")).toBeVisible();
+  await audit(page, "/ (loading)");
+});
